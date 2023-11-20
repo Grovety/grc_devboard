@@ -1,0 +1,25 @@
+var classnc_1_1polynomial_1_1_poly1d =
+[
+    [ "Poly1d", "classnc_1_1polynomial_1_1_poly1d.html#a30777a0dd9351cf64f96959dad0d9ba5", null ],
+    [ "Poly1d", "classnc_1_1polynomial_1_1_poly1d.html#a33c01905d846d32e7d49dc4e7e884551", null ],
+    [ "area", "classnc_1_1polynomial_1_1_poly1d.html#adcbfe7e5fe2ed3b73bc5c81a73ece1cb", null ],
+    [ "astype", "classnc_1_1polynomial_1_1_poly1d.html#a0cf03b40603f490af100cdc65140ab9f", null ],
+    [ "coefficients", "classnc_1_1polynomial_1_1_poly1d.html#abc31b5e093fd3ce5b2c14eade8d346a9", null ],
+    [ "deriv", "classnc_1_1polynomial_1_1_poly1d.html#a06b9fb8a31de37a067c9ed54af6295d2", null ],
+    [ "fit", "classnc_1_1polynomial_1_1_poly1d.html#a1526585db421bbf96dfb88d99870c201", null ],
+    [ "fit", "classnc_1_1polynomial_1_1_poly1d.html#abd9c3ff549505b8c42b4a4e97ff95b2c", null ],
+    [ "integ", "classnc_1_1polynomial_1_1_poly1d.html#a4c2902780c89054a6ca436a72ac77119", null ],
+    [ "operator()", "classnc_1_1polynomial_1_1_poly1d.html#ac82910d648a2a3cfd2301e12907414dd", null ],
+    [ "operator*", "classnc_1_1polynomial_1_1_poly1d.html#aab8cce6bf7a9400862d98684de8ef355", null ],
+    [ "operator*=", "classnc_1_1polynomial_1_1_poly1d.html#a06293521430112062f975b4854090d24", null ],
+    [ "operator+", "classnc_1_1polynomial_1_1_poly1d.html#a65afb72ad35683688c7fb71ee77f839e", null ],
+    [ "operator+=", "classnc_1_1polynomial_1_1_poly1d.html#a44a0331a1cfc760d7b80bfc20b661366", null ],
+    [ "operator-", "classnc_1_1polynomial_1_1_poly1d.html#ade7b4f432e1056bc66d88a131a2cbf41", null ],
+    [ "operator-=", "classnc_1_1polynomial_1_1_poly1d.html#a732cca31f4b6180d0ad035a6daeb160a", null ],
+    [ "operator^", "classnc_1_1polynomial_1_1_poly1d.html#a548c945121cb39859f649cf39a6d0830", null ],
+    [ "operator^=", "classnc_1_1polynomial_1_1_poly1d.html#a930f53185992537e3eb5844ebb70bf38", null ],
+    [ "order", "classnc_1_1polynomial_1_1_poly1d.html#ab978ca2f65c7cd640309c1be86aa9141", null ],
+    [ "print", "classnc_1_1polynomial_1_1_poly1d.html#ab17f5e0983d6c66a3419cb331d158395", null ],
+    [ "str", "classnc_1_1polynomial_1_1_poly1d.html#aa5c091077a037bab14a1c558ece21435", null ],
+    [ "operator<<", "classnc_1_1polynomial_1_1_poly1d.html#a589d9ff132413fa86a20f2fa7910e5df", null ]
+];

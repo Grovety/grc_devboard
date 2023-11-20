@@ -1,0 +1,14 @@
+name: test
+dependencies:
+  - python=3.9
+  - pip
+  - numpy
+  - astropy
+  - scipy
+  - matplotlib
+  - mpmath
+  - pytest
+  - tbb
+  - tbb-devel 
+  - pip:
+      - vectormath
