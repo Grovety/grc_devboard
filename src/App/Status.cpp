@@ -1,6 +1,6 @@
 #include "Status.hpp"
+#include "Common.hpp"
 #include "ILed.hpp"
-#include "common.hpp"
 
 constexpr char TAG[] = "Status";
 
@@ -13,7 +13,8 @@ static void status_monitor_task(void *pvParameters) {
 
   auto blinker = [p_led, xTicks, &xEnterTime](
                      EventBits_t mask, TickType_t timeout, ILed::Colour colour,
-                     unsigned hold_time, unsigned led_num = -1, ILed::Brightness b = ILed::Brightness::_50) mutable {
+                     unsigned hold_time, unsigned led_num = -1,
+                     ILed::Brightness b = ILed::Brightness::_50) mutable {
     auto &time = xEnterTime[GET_BIT_POS(mask)];
     time += xTicks;
     if (time > timeout) {
@@ -53,7 +54,8 @@ static void status_monitor_task(void *pvParameters) {
           p_led->set(ILed::Blue);
         }
       } else if (xBits & STATUS_SYSTEM_SUSPENDED_MSK) {
-        blinker(STATUS_SYSTEM_SUSPENDED_MSK, 5000, ILed::Cyan, 200, -1, ILed::Brightness::_25);
+        blinker(STATUS_SYSTEM_SUSPENDED_MSK, 5000, ILed::Cyan, 200, -1,
+                ILed::Brightness::_25);
       } else {
         p_led->set(ILed::Black);
       }

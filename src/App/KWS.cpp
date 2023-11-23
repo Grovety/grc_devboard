@@ -1,7 +1,7 @@
 #include "KWS.hpp"
+#include "Common.hpp"
 #include "Event.hpp"
 #include "Status.hpp"
-#include "common.hpp"
 
 #include "kws.h"
 #include "mfcc_preprocessor.h"
@@ -13,7 +13,7 @@
 static MicFragmentReader s_mic;
 static MfccPreprocessor s_pp;
 
-static const char* TAG = "KWS";
+static const char *TAG = "KWS";
 
 static void kws_event_task(void *pvParameters) {
   LOGD(TAG, "Init MIC listener...");

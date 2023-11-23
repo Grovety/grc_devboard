@@ -1,6 +1,6 @@
-#include "common.hpp"
+#include "Common.hpp"
 
-constexpr char TAG[] = "common";
+constexpr char TAG[] = "Common";
 
 std::vector<float> saveToVect(const MatrixDyn &mat) {
   std::vector<float> res;
@@ -22,7 +22,7 @@ void makeMatrix(MatrixDyn &mat, unsigned rows, unsigned cols,
   }
 };
 
-void printMatrix(const MatrixDyn &mat, const char *name, const char space) {
+void printMatrix(const MatrixDyn &mat, const char *name, const char sep) {
   if (name)
     printf("%s:\n", name);
 
@@ -30,8 +30,31 @@ void printMatrix(const MatrixDyn &mat, const char *name, const char space) {
     for (unsigned col = 0; col < mat.numCols(); ++col) {
       printf("% 4.4f", mat(row, col));
       if (col + 1 < mat.numCols())
-        printf("%c", space);
+        printf("%c", sep);
     }
     printf("\n");
   }
+}
+
+void concat(MatrixDyn &dst, const MatrixDyn &src) {
+  unsigned keep = dst.numCols();
+  if (keep)
+    dst.resizeSlow(dst.numRows(), keep + src.numCols());
+  else
+    dst.resizeFast(dst.numRows(), src.numCols());
+
+  dst.put(dst.rSlice(), nc::Slice(keep, keep + src.numCols()), src);
+}
+
+bool walk(MatrixDyn &mat, WalkFuncDyn func, void *data) {
+  for (unsigned row = 0; row < mat.numRows(); ++row) {
+    for (unsigned col = 0; col < mat.numCols(); ++col) {
+      WALK_CMD cmd = (*func)(mat, row, col, data);
+      if (cmd == WC_STOP)
+        return false;
+      if (cmd == WC_SKIP)
+        break;
+    }
+  }
+  return true;
 }

@@ -67,11 +67,11 @@ set(MIC_INC
 
 set(GRC_SDK_DIR "${3RDPARTY_DIR}/grc_sdk")
 set(GRC_SDK_SRC
-    "${GRC_SDK_DIR}/grc/grc_i2c.c"
-    "${GRC_SDK_DIR}/grc/drivers/grc_ll_i2c_esp32.c"
-    "${GRC_SDK_DIR}/grc/protocol_layer/crc_calculation.c"
-    "${GRC_SDK_DIR}/grc/protocol_layer/grc_ll_api.c"
-    "${GRC_SDK_DIR}/grc/protocol_layer/grc_ll_protocol_commands.c"
+    "${GRC_SDK_DIR}/grc/Grc.cpp"
+    "${GRC_SDK_DIR}/grc/i2c/grc_i2c.c"
+    "${GRC_SDK_DIR}/grc/i2c/crc_calculation.c"
+    "${GRC_SDK_DIR}/grc/i2c/grc_ll_api.c"
+    "${GRC_SDK_DIR}/grc/i2c/grc_ll_protocol_commands.c"
 )
 set(GRC_SDK_INC
     "${GRC_SDK_DIR}/"
@@ -109,7 +109,6 @@ idf_component_register(
     "./Grc/VibroGrc.cpp"
     "./Grc/GestureGrc.cpp"
     "./Grc/RhythmGrc.cpp"
-    "./Grc/IGrc.cpp"
 
     "./App/GestureScenario.cpp"
     "./App/RhythmScenario.cpp"
@@ -121,28 +120,26 @@ idf_component_register(
     "./App/GrcController.cpp"
     "./App/Status.cpp"
 
-    "./common/preprocessing.cpp"
-    "./common/common.cpp"
-    "./common/hyper_parameters.cpp"
-    "./common/custom_types.cpp"
-    "./common/log.cpp"
+    "./Common/Common.cpp"
+    "./Common/Statistics.cpp"
+    "./Common/Log.cpp"
 
-    "hardware/Accelerometer.cpp"
-    "hardware/Led.cpp"
-    "hardware/Lcd.cpp"                            
-    "hardware/Button.cpp"
-    "hardware/i2c.cpp"
-    "hardware/NVStorage.cpp"
+    "Hardware/Accelerometer.cpp"
+    "Hardware/Led.cpp"
+    "Hardware/Lcd.cpp"                            
+    "Hardware/Button.cpp"
+    "Hardware/I2C.cpp"
+    "Hardware/NVStorage.cpp"
 
     ${KWS_SRC} ${MIC_SRC}
     ${U8G2_SRC}
     ${GRC_SDK_SRC}
 
     INCLUDE_DIRS
-    "./common/include"
+    "./Common/include"
     "./Grc/include"
     "./App/include"
-    "./hardware"
+    "./Hardware"
 
     "${3RDPARTY_DIR}/NumCpp/include"
     ${KWS_INC} ${MIC_INC}
@@ -156,7 +153,7 @@ idf_component_register(
     "driver"
 )
 
-target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-error=unused-const-variable -Wno-error=delete-non-virtual-dtor)
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-error=unused-const-variable -Wno-error=delete-non-virtual-dtor -Wno-error=implicit-function-declaration -fpermissive)
 target_compile_options(${COMPONENT_LIB} PUBLIC "-DLOG_LOCAL_LEVEL=ESP_LOG_INFO")
 add_compile_definitions(USE_LOG=1)
 add_compile_definitions(LOG_LEVEL=LOG_LEVEL_INFO)

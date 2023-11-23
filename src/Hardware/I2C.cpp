@@ -1,6 +1,6 @@
 #include <string.h>
 
-#include "i2c.h"
+#include "I2C.hpp"
 
 #include <driver/i2c.h>
 #include <esp_log.h>
@@ -19,7 +19,7 @@ I2C g_i2c(I2C_MASTER_SDA_IO, I2C_MASTER_SCL_IO);
 static const char *TAG = "i2c";
 
 bool I2C::open() {
-  if (m_IsOpened)
+  if (isOpened_)
     return true;
 
   i2c_port_t i2c_master_port = I2C_MASTER_NUM;
@@ -27,8 +27,8 @@ bool I2C::open() {
   i2c_config_t conf;
   memset(&conf, '\0', sizeof(conf));
   conf.mode = I2C_MODE_MASTER;
-  conf.sda_io_num = m_sda;
-  conf.scl_io_num = m_scl;
+  conf.sda_io_num = sda_;
+  conf.scl_io_num = scl_;
   conf.sda_pullup_en = GPIO_PULLUP_ENABLE;
   conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
   conf.master.clk_speed = I2C_MASTER_FREQ_HZ;
@@ -41,24 +41,24 @@ bool I2C::open() {
   ESP_ERROR_CHECK(res);
   ESP_LOGI(TAG, "I2C initialized successfully");
 
-  m_IsOpened = true;
+  isOpened_ = true;
   return res == ESP_OK;
 }
 
 bool I2C::close() {
-  if (!m_IsOpened)
+  if (!isOpened_)
     return true;
 
   esp_err_t res = i2c_driver_delete(I2C_MASTER_NUM);
   ESP_ERROR_CHECK(res);
   ESP_LOGI(TAG, "I2C de-initialized successfully");
 
-  m_IsOpened = false;
+  isOpened_ = false;
   return res == ESP_OK;
 }
 
 bool I2C::write(uint8_t dev_adr, const uint8_t *buf, size_t size) {
-  if (!m_IsOpened)
+  if (!isOpened_)
     return false;
 
   esp_err_t ret =
@@ -69,7 +69,7 @@ bool I2C::write(uint8_t dev_adr, const uint8_t *buf, size_t size) {
 
 bool I2C::write_read(uint8_t dev_adr, const uint8_t *wbuf, size_t wsize,
                      uint8_t *rbuf, size_t rsize) {
-  if (!m_IsOpened)
+  if (!isOpened_)
     return false;
 
   esp_err_t ret = i2c_master_write_read_device(

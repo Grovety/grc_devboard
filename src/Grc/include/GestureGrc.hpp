@@ -11,6 +11,25 @@
  */
 class GestureGrc : public BaseGrc {
 public:
+  /*!
+  * \brief Hyper parameters to GRC AI SW.
+  */
+  static constexpr HP hp = {
+    .PredictSignal = false,
+    .SeparateInaccuracies = false,
+    .InputComponents = 6,
+    .OutputComponents = 6,
+    .Neurons = 17,
+    .SpectralRadius = 0.372852,
+    .Sparsity = 0.459827,
+    .Noise = 0.00022583,
+    .InputScaling = 0.36936,
+    .InputSparsity = 0.498682,
+    .FeedbackScaling = 0.000177185,
+    .FeedbackSparsity = 0.727765,
+    .ThresholdFactor = 1.05014
+  };
+  /*! \brief Constructor. */
   GestureGrc() : BaseGrc("Gesture") {}
   /*!
    * \brief Train Grc on signal.

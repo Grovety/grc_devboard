@@ -1,7 +1,6 @@
 #include "App.hpp"
 #include "GestureGrc.hpp"
 
-extern HP g_HP_Gesture;
 constexpr char TAG[] = "GestureScenario";
 
 namespace GestureScenario {
@@ -407,12 +406,12 @@ void Common::InitGestureScenario::enterAction(App *app) {
 
 void Common::InitGestureScenario::update(App *app) {
   p_grc = std::make_unique<GestureGrc>();
-  int res = p_grc->init(g_HP_Gesture);
+  int res = p_grc->init(GestureGrc::hp);
   if (res < 0) {
     xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_BAD_MSK);
     app->transition(&Common::States::select_scenario_menu);
   } else {
-    assert(::g_HP_Gesture.m_InputComponents == SIGNAL_COMPS_NUM);
+    assert(::GestureGrc::hp.InputComponents == SIGNAL_COMPS_NUM);
     GestureScenario::s_data.num_rows = SIGNAL_COMPS_NUM;
     GestureScenario::s_data.num_cols = SIGNAL_SAMPLES_NUM;
     GestureScenario::s_data.sync_time_ms = SIGNAL_PERIOD_MS;

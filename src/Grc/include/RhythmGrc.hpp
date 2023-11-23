@@ -11,6 +11,25 @@
  */
 class RhythmGrc : public BaseGrc {
 public:
+  /*!
+  * \brief Hyper parameters to GRC AI SW.
+  */
+  static constexpr HP hp = {
+    .PredictSignal = true,
+    .SeparateInaccuracies = false,
+    .InputComponents = 1,
+    .OutputComponents = 1,
+    .Neurons = 18,
+    .SpectralRadius = 0.444104,
+    .Sparsity = 0.631049,
+    .Noise = 0.00100195,
+    .InputScaling = 0.566296,
+    .InputSparsity = 0.4302,
+    .FeedbackScaling = 0.00168945,
+    .FeedbackSparsity = 0.417676,
+    .ThresholdFactor = 0.86792
+  };
+  /*! \brief Constructor. */
   RhythmGrc() : BaseGrc("Rhythm") {}
   /*!
    * \brief Train Grc on signal.
@@ -26,3 +45,10 @@ public:
    */
   int inference(const MatrixDyn &signal) override final;
 };
+/*!
+  * \brief Rhythm app specific preprocessing.
+  * \param signal Input signal.
+  * \param signal_period_ms Sensor polling frequency.
+  * \return Result.
+  */
+bool preprocessRhythm(MatrixDyn &signal, unsigned signal_period_ms);

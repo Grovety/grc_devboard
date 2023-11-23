@@ -8,8 +8,6 @@
 
 ## 3rd party libraries used in the Demo Application
 
-* U8g2 <https://github.com/olikraus/u8g2>
 * numcpp <https://github.com/dpilger26/NumCpp>
-* KWS <https://github.com/ARM-software/ML-KWS-for-MCU>
-* MFCC <https://github.com/Nuclei-Software/NMSIS>
+* MFCC <https://github.com/ARM-software/ML-KWS-for-MCU>
 * ApacheTVM <https://github.com/apache/tvm>

@@ -1,16 +1,14 @@
 #include "Led.hpp"
-#include "common.hpp"
+#include "Common.hpp"
 
-#include "led_strip.h"
-#include "esp_log.h"
-#include "esp_err.h"
 #include "driver/gpio.h"
+#include "esp_err.h"
+#include "esp_log.h"
+#include "led_strip.h"
 
 struct RGB {
   uint32_t r, g, b;
-  RGB operator>>(uint32_t val) const {
-    return { r >> val, g >> val, b >> val };
-  }
+  RGB operator>>(uint32_t val) const { return {r >> val, g >> val, b >> val}; }
 } static const colour_table[] = {
     /* Red */ {100, 0, 0},
     /* Green */ {0, 100, 0},
@@ -29,11 +27,13 @@ static led_strip_handle_t s_led_strip;
 static void led_open() {
   // LED strip general initialization, according to your led board design
   led_strip_config_t strip_config = {
-    .strip_gpio_num = LED_GPIO_PIN,           // The GPIO that connected to the LED strip's data line
-    .max_leds = LED_STRIP_LEN,                // The number of LEDs in the strip,
-    .led_pixel_format = LED_PIXEL_FORMAT_GRB, // Pixel format of your LED strip
-    .led_model = LED_MODEL,                   // LED strip model
-    .flags = false,                           // whether to invert the output signal
+      .strip_gpio_num =
+          LED_GPIO_PIN, // The GPIO that connected to the LED strip's data line
+      .max_leds = LED_STRIP_LEN, // The number of LEDs in the strip,
+      .led_pixel_format =
+          LED_PIXEL_FORMAT_GRB, // Pixel format of your LED strip
+      .led_model = LED_MODEL,   // LED strip model
+      .flags = false,           // whether to invert the output signal
   };
 
   // LED strip backend configuration: RMT
@@ -41,14 +41,17 @@ static void led_open() {
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
     .rmt_channel = 0,
 #else
-    .clk_src = RMT_CLK_SRC_DEFAULT,        // different clock source can lead to different power consumption
-    .resolution_hz = 0,                    // RMT counter clock frequency
-    .mem_block_symbols = 0,                // How many RMT symbols can one RMT channel hold at one time
-    .flags = false,                        // DMA feature is available on ESP target like ESP32-S3
+    .clk_src = RMT_CLK_SRC_DEFAULT, // different clock source can lead to
+                                    // different power consumption
+    .resolution_hz = 0,             // RMT counter clock frequency
+    .mem_block_symbols =
+        0,          // How many RMT symbols can one RMT channel hold at one time
+    .flags = false, // DMA feature is available on ESP target like ESP32-S3
 #endif
   };
 
-  ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &s_led_strip));
+  ESP_ERROR_CHECK(
+      led_strip_new_rmt_device(&strip_config, &rmt_config, &s_led_strip));
 }
 
 static void colorWipe(RGB c, uint32_t wait) {
@@ -61,7 +64,8 @@ static void colorWipe(RGB c, uint32_t wait) {
 }
 
 static void colorSetPixel(RGB c, uint32_t pixel) {
-  ESP_ERROR_CHECK(led_strip_set_pixel(s_led_strip, pixel % LED_STRIP_LEN, c.r, c.g, c.b));
+  ESP_ERROR_CHECK(
+      led_strip_set_pixel(s_led_strip, pixel % LED_STRIP_LEN, c.r, c.g, c.b));
   /* Refresh the strip to send data */
   ESP_ERROR_CHECK(led_strip_refresh(s_led_strip));
 }

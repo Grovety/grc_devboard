@@ -1,6 +1,6 @@
 #include "Event.hpp"
+#include "Common.hpp"
 #include "IButton.hpp"
-#include "common.hpp"
 
 enum eButtonState { DOWN, UP };
 
@@ -10,9 +10,7 @@ QueueHandle_t xEventQueue;
 
 constexpr char TAG[] = "Event";
 
-void sendEvent(eEvent ev) {
-  xQueueSend(xEventQueue, &ev, pdMS_TO_TICKS(200));
-}
+void sendEvent(eEvent ev) { xQueueSend(xEventQueue, &ev, pdMS_TO_TICKS(200)); }
 
 static void button_event_task(void *pvParameters) {
   auto *p_button = static_cast<IButton *>(pvParameters);

@@ -1,11 +1,11 @@
 #pragma once
-#include "IGrc.hpp"
-#include "common.hpp"
+#include "grc/Grc.hpp"
+#include "Common.hpp"
 
 /*!
  * \brief Interface to Grc applications.
  */
-class BaseGrc : protected IGrc {
+class BaseGrc {
 public:
   /*!
    * \brief The constructor.
@@ -55,12 +55,10 @@ public:
   unsigned getQty() const;
   /*! \brief Get app name. */
   const char *getName() const;
-  /*! \brief Get hyper parameters. */
-  HP getHyperParams() const;
 
 protected:
-  /*! \brief Hyper parameters to Grc. */
-  HP hyper_params_;
+  /*! \brief Grc device. */
+  Grc grc_;
   /*! \brief App name. */
   const char *name_;
 };

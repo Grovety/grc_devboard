@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "common.hpp"
-#include "i2c.h"
+#include "Common.hpp"
+#include "I2C.hpp"
 
 #include "driver/gpio.h"
 
@@ -20,16 +20,16 @@
 // Register addresses of the first data register
 #define MPU_BEGIN_DATA_REG_ADDR 0x3B
 
-#define MPU6886_SMPLRT_DIV 0x19
-#define MPU6886_INT_PIN_CFG 0x37
-#define MPU6886_INT_ENABLE 0x38
+#define MPU9250_SMPLRT_DIV 0x19
+#define MPU9250_INT_PIN_CFG 0x37
+#define MPU9250_INT_ENABLE 0x38
 
-#define MPU6886_USER_CTRL 0x6A
-#define MPU6886_CONFIG 0x1A
-#define MPU6886_GYRO_CONFIG 0x1B
-#define MPU6886_ACCEL_CONFIG 0x1C
-#define MPU6886_ACCEL_CONFIG2 0x1D
-#define MPU6886_FIFO_EN 0x23
+#define MPU9250_USER_CTRL 0x6A
+#define MPU9250_CONFIG 0x1A
+#define MPU9250_GYRO_CONFIG 0x1B
+#define MPU9250_ACCEL_CONFIG 0x1C
+#define MPU9250_ACCEL_CONFIG2 0x1D
+#define MPU9250_FIFO_EN 0x23
 
 #define WHOAMI_MPU9250 0x71
 #define WHOAMI_MPU6500 0x70
@@ -51,26 +51,26 @@ static float conv(const uint8_t *data) {
 }
 
 struct {
-  unsigned char m_reg;
-  unsigned char m_data;
-  unsigned char m_delay;
+  unsigned char reg_;
+  unsigned char data_;
+  unsigned char delay_;
 } static s_init_seq[] = {
     {MPU_PWR_MGMT_1_REG_ADDR, 0x00, 10},
     {MPU_PWR_MGMT_1_REG_ADDR, (0x01 << 7), 10}, // reset bit
     {MPU_PWR_MGMT_1_REG_ADDR, (0x01 << 0), 10},
 
-    {MPU6886_ACCEL_CONFIG, 0x08, 1}, // AFS_4G
-    {MPU6886_GYRO_CONFIG, 0x18, 1},  // GFS_2000DPS
+    {MPU9250_ACCEL_CONFIG, 0x08, 1}, // AFS_4G
+    {MPU9250_GYRO_CONFIG, 0x18, 1},  // GFS_2000DPS
 
-    {MPU6886_CONFIG, 0x01, 1},
-    {MPU6886_SMPLRT_DIV, 0x00, 1}, // 1000 / (srd + 1) = 1 kHz
-    {MPU6886_INT_ENABLE, 0x00, 1},
-    {MPU6886_ACCEL_CONFIG2, 0x00, 1},
-    {MPU6886_USER_CTRL, 0x00, 1},
-    {MPU6886_FIFO_EN, 0x00, 1},
-    {MPU6886_INT_PIN_CFG, 0x22, 1},
+    {MPU9250_CONFIG, 0x01, 1},
+    {MPU9250_SMPLRT_DIV, 0x00, 1}, // 1000 / (srd + 1) = 1 kHz
+    {MPU9250_INT_ENABLE, 0x00, 1},
+    {MPU9250_ACCEL_CONFIG2, 0x00, 1},
+    {MPU9250_USER_CTRL, 0x00, 1},
+    {MPU9250_FIFO_EN, 0x00, 1},
+    {MPU9250_INT_PIN_CFG, 0x22, 1},
 
-    {MPU6886_INT_ENABLE, 0x01, 1}};
+    {MPU9250_INT_ENABLE, 0x01, 1}};
 
 bool Accelerometer::open() {
   if (!g_i2c.open()) {
@@ -96,11 +96,11 @@ bool Accelerometer::open() {
   }
 
   for (unsigned i = 0; i < _countof(s_init_seq); ++i) {
-    if (!writeRegisterByte(s_init_seq[i].m_reg, s_init_seq[i].m_data)) {
+    if (!writeRegisterByte(s_init_seq[i].reg_, s_init_seq[i].data_)) {
       ESP_LOGE(TAG, "Failed to write init sequence");
       return false;
     }
-    delayMS(s_init_seq[i].m_delay);
+    delayMS(s_init_seq[i].delay_);
   }
   delayMS(100);
   return true;

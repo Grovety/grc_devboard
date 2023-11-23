@@ -5,10 +5,10 @@
 
 class I2C {
 private:
-  const int m_sda, m_scl;
-  bool m_IsOpened;
+  const int sda_, scl_;
+  bool isOpened_;
 public:
-  I2C(int sda, int scl) : m_sda(sda), m_scl(scl) { m_IsOpened = false; }
+  I2C(int sda, int scl) : sda_(sda), scl_(scl) { isOpened_ = false; }
   bool open();
   bool close();
 

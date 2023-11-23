@@ -1,8 +1,6 @@
 #include "App.hpp"
 #include "RhythmGrc.hpp"
-#include "preprocessing.hpp"
 
-extern HP g_HP_Knock;
 constexpr char TAG[] = "RhythmScenario";
 
 namespace RhythmScenario {
@@ -396,7 +394,7 @@ void Common::InitRhythmScenario::enterAction(App *app) {
 
 void Common::InitRhythmScenario::update(App *app) {
   p_grc = std::make_unique<RhythmGrc>();
-  int res = p_grc->init(g_HP_Knock);
+  int res = p_grc->init(RhythmGrc::hp);
   if (res < 0) {
     xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_BAD_MSK);
     app->transition(&Common::States::select_scenario_menu);

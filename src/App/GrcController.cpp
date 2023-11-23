@@ -1,8 +1,8 @@
 #include "GrcController.hpp"
+#include "Common.hpp"
 #include "IStorage.hpp"
 #include "Status.hpp"
-#include "common.hpp"
-#include "custom_types.hpp"
+#include "Types.hpp"
 
 constexpr char TAG[] = "GrcController";
 
@@ -48,7 +48,7 @@ static void grc_controller_task(void *pvParameters) {
         xEventGroupWaitBits(xStatusEventGroup, STATUS_PRIORITY_SEMA_MSK, pdTRUE,
                             pdFALSE, portMAX_DELAY);
         int category = -1;
-        for (unsigned retry_count = 0; ; ++retry_count) {
+        for (unsigned retry_count = 0;; ++retry_count) {
           if (retry_count >= 5) {
             LOGE(TAG, "Failed to train category");
             abort();

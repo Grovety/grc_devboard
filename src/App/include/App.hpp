@@ -3,7 +3,7 @@
 
 #include "Event.hpp"
 #include "State.hpp"
-#include "common.hpp"
+#include "Common.hpp"
 
 #include "BaseGrc.hpp"
 #include "GrcController.hpp"

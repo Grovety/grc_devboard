@@ -3,7 +3,6 @@
 #include "VibroGrc.hpp"
 #include "string.h"
 
-extern HP g_HP_Ventilator;
 constexpr char TAG[] = "VibroScenario";
 
 namespace VibroScenario {
@@ -60,7 +59,8 @@ struct Listen : Common::Listen {
 
 struct Infer : State {
   void enterAction(App *app) override final {
-    xEventGroupSetBits(xStatusEventGroup, STATUS_CMD_WAIT_MSK | STATUS_SYSTEM_BUSY_MSK);
+    xEventGroupSetBits(xStatusEventGroup,
+                       STATUS_CMD_WAIT_MSK | STATUS_SYSTEM_BUSY_MSK);
   }
   void handleEvent(App *app, eEvent ev) override final {
     switch (ev) {
@@ -82,7 +82,8 @@ struct Infer : State {
     app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
     app->p_display->print_string("Detecting...");
     app->p_display->send();
-    if (xQueueReceive(ListenerQueues.xTxQueue, &data, portMAX_DELAY) == pdPASS) {
+    if (xQueueReceive(ListenerQueues.xTxQueue, &data, portMAX_DELAY) ==
+        pdPASS) {
       LOGD(TAG, "Done: num_cols=%d", data.num_cols);
       GrcEvent_t load_ev{eGrcEventId::LOAD_SIGNAL, new SignalData_t(data)};
       xQueueSend(GrcControllerQueues.xRxQueue, &load_ev, portMAX_DELAY);
@@ -321,12 +322,12 @@ void Common::InitVibroScenario::enterAction(App *app) {
 
 void Common::InitVibroScenario::update(App *app) {
   p_grc = std::make_unique<VibroGrc>();
-  int res = p_grc->init(g_HP_Ventilator);
+  int res = p_grc->init(VibroGrc::hp);
   if (res < 0) {
     xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_BAD_MSK);
     app->transition(&Common::States::select_scenario_menu);
   } else {
-    assert(::g_HP_Ventilator.m_InputComponents == SIGNAL_COMPS_NUM);
+    assert(::VibroGrc::hp.InputComponents == SIGNAL_COMPS_NUM);
     initGrcController(p_grc.get());
     GrcEvent_t grc_ev{eGrcEventId::LOAD_WGTS, app->p_storage.get()};
     xQueueSend(GrcControllerQueues.xRxQueue, &grc_ev, portMAX_DELAY);

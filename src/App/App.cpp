@@ -56,7 +56,8 @@ void App::run() {
     } else {
       current_state_.ptr->update(this);
       const auto xBits = xEventGroupGetBits(xStatusEventGroup);
-      if (!(xBits & STATUS_SYSTEM_SUSPENDED_MSK) && !(xBits & STATUS_SYSTEM_BUSY_MSK)) {
+      if (!(xBits & STATUS_SYSTEM_SUSPENDED_MSK) &&
+          !(xBits & STATUS_SYSTEM_BUSY_MSK)) {
         if (no_event_time + SUSPEND_AFTER_MS < getTimeMS()) {
           sus_state = Common::Suspended(current_state_.ptr);
           transition(&sus_state);
