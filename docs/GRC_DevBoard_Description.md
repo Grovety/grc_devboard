@@ -102,9 +102,10 @@ The work of the neural network created for the AI tasks is run on the MCU using
 
 ## Demo scenarios:​
 
-* Recognition of hand wave gestures​
-* Rhythm recognition
-* Predictive maintenance​
+* Anomaly and state detection for fan
+* Voice PIN AI Key
+* Rhythm recognition (Rhythm key)
+* Recognition of hand wave gestures​ (robots, manipulators)
 
 ## Benefits
 
