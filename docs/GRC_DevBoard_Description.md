@@ -45,8 +45,7 @@ The work of the neural network created for the AI tasks is run on the MCU using
 
 ## GRC Dev Board Concept Design
 
-![Dev Board Concept Design](media/DevBoard_Concept_Design.png)
-
+<img src="media/DevBoard_Concept_Design.png" width=50%>
 ## GRC Dev Board Description
 
 ![DevBoard_Description](media/DevBoard_Description.png)
