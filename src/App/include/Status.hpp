@@ -3,6 +3,7 @@
 #include "freertos/event_groups.h"
 #include "freertos/portmacro.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 
 #include "ILed.hpp"
 
@@ -15,14 +16,15 @@
 #define STATUS_MIC_INIT_MSK BIT_POS(2)
 #define STATUS_MIC_NOISY_ENV_MSK BIT_POS(3)
 #define STATUS_MIC_BAD_ENV_MSK BIT_POS(4)
-#define STATUS_CMD_WAIT_MSK BIT_POS(5)
+#define STATUS_MIC_ON_MSK BIT_POS(5)
 #define STATUS_KWS_BUSY_MSK BIT_POS(6)
-#define STATUS_EVENT_GOOD_MSK BIT_POS(7)
-#define STATUS_EVENT_BAD_MSK BIT_POS(8)
-#define STATUS_PRIORITY_SEMA_MSK BIT_POS(9)
+#define STATUS_EVENT_KWS_STOP_MSK BIT_POS(7)
+#define STATUS_EVENT_GOOD_MSK BIT_POS(8)
+#define STATUS_EVENT_BAD_MSK BIT_POS(9)
 #define STATUS_SYSTEM_SUSPENDED_MSK BIT_POS(10)
 #define STATUS_SYSTEM_BUSY_MSK BIT_POS(11)
-#define STATUS_ALL_BITS_MSK ALL_BITS(12)
+#define STATUS_PREP_STATE_MSK BIT_POS(12)
+#define STATUS_ALL_BITS_MSK ALL_BITS(13)
 #define STATUS_INIT_BITS_MSK (STATUS_MIC_INIT_MSK | STATUS_SENSOR_INIT_MSK)
 #define STATUS_EVENT_BITS_MSK (STATUS_EVENT_GOOD_MSK | STATUS_EVENT_BAD_MSK)
 #define STATUS_MIC_ENV_BITS_MSK                                                \

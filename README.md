@@ -8,6 +8,4 @@
 
 ## 3rd party libraries used in the Demo Application
 
-* numcpp <https://github.com/dpilger26/NumCpp>
-* MFCC <https://github.com/ARM-software/ML-KWS-for-MCU>
-* ApacheTVM <https://github.com/apache/tvm>
+* [KWS](https://github.com/ARM-software/ML-KWS-for-MCU)

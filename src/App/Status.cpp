@@ -2,7 +2,7 @@
 #include "Common.hpp"
 #include "ILed.hpp"
 
-constexpr char TAG[] = "Status";
+static constexpr char TAG[] = "Status";
 
 EventGroupHandle_t xStatusEventGroup;
 
@@ -19,7 +19,7 @@ static void status_monitor_task(void *pvParameters) {
     time += xTicks;
     if (time > timeout) {
       p_led->set(colour, led_num, b);
-      delayMS(hold_time);
+      vTaskDelay(pdMS_TO_TICKS(hold_time));
       time = 0;
     } else {
       p_led->set(ILed::Black, led_num);
@@ -32,20 +32,25 @@ static void status_monitor_task(void *pvParameters) {
     if (xBits & STATUS_EVENT_BITS_MSK) {
       if (xBits & STATUS_EVENT_GOOD_MSK) {
         p_led->set(ILed::Green);
-        delayMS(1500);
+        vTaskDelay(pdMS_TO_TICKS(1500));
       } else if (xBits & STATUS_EVENT_BAD_MSK) {
         p_led->set(ILed::Red);
-        delayMS(1500);
+        vTaskDelay(pdMS_TO_TICKS(1500));
       }
       p_led->set(ILed::Black);
     } else {
       xBits = xEventGroupGetBits(xStatusEventGroup);
 
-      if (xBits & STATUS_SENSOR_LISTENER_BUSY_MSK) {
+      if (xBits & STATUS_KWS_BUSY_MSK) {
+        p_led->set(ILed::Yellow);
+      } else if (xBits & STATUS_PREP_STATE_MSK) {
+        p_led->set(ILed::Black);
+      } else if (xBits & STATUS_SENSOR_LISTENER_BUSY_MSK) {
         p_led->set(ILed::White);
-      } else if (xBits & STATUS_KWS_BUSY_MSK) {
-        blinker(STATUS_KWS_BUSY_MSK, 200, ILed::Yellow, 100);
-      } else if (xBits & STATUS_CMD_WAIT_MSK) {
+      } else if (xBits & STATUS_SYSTEM_SUSPENDED_MSK) {
+        blinker(STATUS_SYSTEM_SUSPENDED_MSK, 5000, ILed::Cyan, 200, -1,
+                ILed::Brightness::_25);
+      } else if (xBits & STATUS_MIC_ON_MSK) {
         if (xBits & STATUS_MIC_BAD_ENV_MSK) {
           p_led->set(ILed::Black);
         } else if (xBits & STATUS_MIC_NOISY_ENV_MSK) {
@@ -53,9 +58,6 @@ static void status_monitor_task(void *pvParameters) {
         } else {
           p_led->set(ILed::Blue);
         }
-      } else if (xBits & STATUS_SYSTEM_SUSPENDED_MSK) {
-        blinker(STATUS_SYSTEM_SUSPENDED_MSK, 5000, ILed::Cyan, 200, -1,
-                ILed::Brightness::_25);
       } else {
         p_led->set(ILed::Black);
       }
@@ -68,7 +70,6 @@ void initStatusMonitor(ILed *p_led) {
   if (xStatusEventGroup == NULL) {
     LOGE(TAG, "Error creating xStatusEventGroup");
   }
-  xEventGroupSetBits(xStatusEventGroup, STATUS_PRIORITY_SEMA_MSK);
 
   TaskHandle_t xHandle = NULL;
   auto xReturned =

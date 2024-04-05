@@ -27,10 +27,15 @@ BaseGrc::BaseGrc(const char *name) : grc_(&ll_dev), name_(name) {
 
 BaseGrc::~BaseGrc() { grc_.clearState(); }
 
-int BaseGrc::init(HP hp) {
-  int res = grc_.init(hp);
+int BaseGrc::init(const HP &hp, const uint8_t *bytes, const int len) {
+  int res = grc_.init(bytes, len);
   if (res < 0) {
     LOGE(name_, "failed to initialize Grc, %d", res);
+    return res;
+  }
+  res = grc_.setParams(hp);
+  if (res < 0) {
+    LOGE(name_, "failed to set Grc config, %d", res);
   }
   return res;
 }
@@ -43,9 +48,9 @@ int BaseGrc::clear() {
   return res;
 }
 
-unsigned BaseGrc::save(std::vector<RT> &data) {
+unsigned BaseGrc::save(std::vector<float> &data) {
   LOGD(name_, __FUNCTION__);
-  int res = grc_.save(data);
+  int res = grc_.save(&data);
   if (res < 0) {
     LOGE(name_, "failed to save Grc state, %d", res);
     return 0;
@@ -53,12 +58,14 @@ unsigned BaseGrc::save(std::vector<RT> &data) {
   return res;
 }
 
-bool BaseGrc::load(unsigned qty, const std::vector<RT> &data) {
+bool BaseGrc::load(unsigned qty, const std::vector<float> &data) {
   LOGD(name_, __FUNCTION__);
-  int res = grc_.load(qty, data.size(), data.data());
-  if (res < 0) {
-    LOGE(name_, "failed to load Grc state, %d", res);
-    return false;
+  if (qty > 0 && !data.empty()) {
+    int res = grc_.load(qty, data.size(), data.data());
+    if (res < 0) {
+      LOGE(name_, "failed to load Grc state, %d", res);
+      return false;
+    }
   }
   return true;
 }

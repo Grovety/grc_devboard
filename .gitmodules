@@ -1,6 +1,6 @@
 [submodule "3rdparty/grc_sdk"]
 	path = 3rdparty/grc_sdk
-	url = https://github.com/Grovety/grc_sdk.git
+	url = https://github.com/Grovety/grc_sdk
 [submodule "3rdparty/u8g2"]
 	path = 3rdparty/u8g2
 	url = https://github.com/olikraus/u8g2.git

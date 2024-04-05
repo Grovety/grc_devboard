@@ -1,11 +1,10 @@
 #pragma once
 
-#include "IButton.hpp"
-
 #include "freertos/FreeRTOS.h"
 #include "freertos/portmacro.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
+#include "freertos/timers.h"
 
 enum eEvent : unsigned {
   NO_EVENT = 0,
@@ -18,21 +17,26 @@ enum eEvent : unsigned {
   CMD_ONE,
   CMD_TWO,
   CMD_THREE,
-  CMD_GO,
+  CMD_FOUR,
   CMD_UP,
   CMD_SHEILA,
+  CMD_SLEEP,
+  TIMEOUT,
   CMD_UNKNOWN,
 };
 
+/*!
+ * \brief Global timer.
+ */
+extern TimerHandle_t xTimer;
 /*!
  * \brief Global events queue.
  */
 extern QueueHandle_t xEventQueue;
 /*!
  * \brief Initialize Events Generator.
- * \param p_button Pointer to button device.
  */
-void initEventsGenerator(IButton *p_button);
+void initEventsGenerator();
 /*!
  * \brief Send event to events queue.
  * \param ev Event.

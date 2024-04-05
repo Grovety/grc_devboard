@@ -3,6 +3,6 @@
 
 class Button : public IButton {
 public:
-  Button();
+  Button(int pin);
   bool isPressed() const override final;
 };

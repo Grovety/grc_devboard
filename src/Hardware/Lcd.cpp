@@ -6,18 +6,19 @@
 
 #include <string.h>
 
-constexpr char TAG[] = "Lcd";
+static constexpr char TAG[] = "Lcd";
 
 #define DISPLAY_WIDTH 128
 #define DISPLAY_HEIGHT 64
-#define FONT_WIDTH 8
-#define FONT_HEIGHT 13
-#define FONT Lcd::Font::F8X13B
+#define FONT_WIDTH 7
+#define FONT_HEIGHT 10
+#define FONT Lcd::Font::COURR10
 
 #define CHARS_X int(DISPLAY_WIDTH / FONT_WIDTH)
 #define LINES_Y int(DISPLAY_HEIGHT / FONT_HEIGHT)
 
 #define HEADER_LINE_COEF 0.7
+#define STRING_LINE_COEF 1.2
 static char HEADER_LINE[DISPLAY_WIDTH / FONT_WIDTH + 1] = {0};
 
 extern "C" uint8_t u8x8_byte_hw_i2c_cb(U8X8_UNUSED u8x8_t *u8x8,
@@ -100,8 +101,8 @@ void Lcd::setRotation(Rotation rot) const {
 void Lcd::setFont(Font f) const {
   switch (f) {
   default:
-  case Font::COURB14:
-    u8g2.setFont(u8g_font_courB14);
+  case Font::COURR10:
+    u8g2.setFont(u8g_font_courR10);
     break;
   case Font::COURR14:
     u8g2.setFont(u8g_font_courR14);
@@ -157,16 +158,16 @@ void Lcd::print_string(const char *fmt, ...) {
   va_start(argp, fmt);
   draw_string(fmt, argp);
   va_end(argp);
-  y_offset_ += FONT_HEIGHT;
+  y_offset_ += FONT_HEIGHT * STRING_LINE_COEF;
 }
 
 void Lcd::send() {
   u8g2.sendBuffer();
   u8g2.clearBuffer();
-  y_offset_ = FONT_HEIGHT;
+  y_offset_ = FONT_HEIGHT * STRING_LINE_COEF;
 }
 
 void Lcd::clear() {
   u8g2.clearBuffer();
-  y_offset_ = FONT_HEIGHT;
+  y_offset_ = FONT_HEIGHT * STRING_LINE_COEF;
 }

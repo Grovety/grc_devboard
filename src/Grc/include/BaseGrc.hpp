@@ -17,9 +17,11 @@ public:
   /*!
    * \brief Grc initialization.
    * \param hp Hyper parameters to Grc.
+   * \param bytes bytes array of reservoir
+   * \param len length of bytes array
    * \return Error code.
    */
-  virtual int init(HP hp);
+  virtual int init(const HP& hp, const uint8_t *bytes, const int len);
   /*!
    * \brief Clear Grc state.
    * \return Error code.
@@ -31,26 +33,26 @@ public:
    * \param category Overwrite specific category in Grc.
    * \return Trained category.
    */
-  virtual int train(const MatrixDyn &signal, int category = -1) = 0;
+  virtual int train(Matrix &signal, int category = -1) = 0;
   /*!
    * \brief Inference on signal.
    * \param signal The input signal that will be sent to Grc.
    * \return Inferenced category.
    */
-  virtual int inference(const MatrixDyn &signal) = 0;
+  virtual int inference(Matrix &signal) = 0;
   /*!
    * \brief Save train metadata to buffer.
    * \param data Buffer.
    * \return Number of saved categories.
    */
-  virtual unsigned save(std::vector<RT> &data);
+  virtual unsigned save(std::vector<float> &data);
   /*!
    * \brief Load train metadata to Grc.
    * \param qty Number of categories.
    * \param data Buffer.
    * \return Whether the data was loaded successfully to Grc.
    */
-  virtual bool load(unsigned qty, const std::vector<RT> &data);
+  virtual bool load(unsigned qty, const std::vector<float> &data);
   /*! \brief Get number of trained categories. */
   unsigned getQty() const;
   /*! \brief Get app name. */

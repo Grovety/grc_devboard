@@ -1,209 +1,245 @@
-#include <cstring>
+#include <algorithm>
+#include <cmath>
 
+#include "esp_log.h"
+
+#include "Status.hpp"
+#include "def.h"
+#include "i2s_rx_slot.h"
 #include "mic_reader.h"
-#include "spec.h"
+#include "mic_proc.h"
+#include "kws_preprocessor.h"
 
-MicReader::MicReader() : fz_(0), errors_(0) {
-  AudioRxSlot::plan(A_SAMPLE_RATE, A_HW_BITS_PER_SAMPLE_DATA, A_SLOT_NUM, A_POLLING_TIME_MS, A_FRAGMENT_TIME_MS, io_plan_);
-  mic_ = new AudioRxSlot(BCK_PIN, WS_PIN, DATA_PIN, CHANNEL_SELECT_PIN);
+static const char *TAG = "mic_reader";
 
-  hw_fragment_size_ = GetFragmentSize();
-  audio_buffer_size_ = PARTS(A_AUDIO_DURATION_MS, A_FRAGMENT_TIME_MS) * hw_fragment_size_;
-  kws_duration_size_ = PARTS(A_SAMPLE_RATE * KWS_DURATION_MS, 1000) * A_BYTES_PER_SAMPLE_DATA;
-  hw_kws_duration_size_ = PARTS(A_SAMPLE_RATE * KWS_DURATION_MS, 1000) * A_HW_BYTES_PER_SAMPLE_DATA;
-  
-  audioBuffer_ = new audio_t[PARTS(audio_buffer_size_, sizeof(audio_t))];
-  if (audioBuffer_)
-    std::memset(audioBuffer_, 0, audio_buffer_size_);
-  else
-    errors_++;
+#define FILTER_INIT_FRAME_NUM 30
+#define MIC_TEST_FRAME_NUM 10
+
+// high pass (120Hz) filter coefficients (Q30)
+static const int32_t b_coeffs[] = {1049020290, -1049020290, 0};
+static const int32_t a_coeffs[] = {1073741824, 1024298756, 0};
+static biquad_df1_o1_filter s_filter(b_coeffs, a_coeffs, 30);
+
+static size_t s_silence_env = 0;
+
+static size_t max_abs_arr[DET_VOICED_FRAMES_WINDOW] = {0};
+static uint8_t is_speech_arr[DET_VOICED_FRAMES_WINDOW] = {0};
+static uint8_t current_frames[DET_VOICED_FRAMES_WINDOW * FRAME_SZ] = { 0 };
+
+#define PROC_FRAME_SZ FRAME_LEN * HW_ELEM_BYTES
+
+static int32_t convert_hw_bytes(uint8_t *buf, size_t bytes_width) {
+  int32_t val = (buf[bytes_width - 1] & 0x80) ? -1 : 0;
+  for(int b = bytes_width - 1; b >= 0; b-- )
+    val = (val << 8) | (buf[b] & 0xFF);
+  return val;
 }
 
-MicReader::~MicReader() {
-  Close(); 
-  if (mic_)
-    delete mic_;
-  if (audioBuffer_)
-    delete[] audioBuffer_;
-}
+static int read_frame(audio_t *dst, biquad_df1_o1_filter &filter, size_t &max_abs) {
+  size_t item_size = 0;
+  uint8_t *item = (uint8_t *)xRingbufferReceiveUpTo(xMicRingBuffer, &item_size, portMAX_DELAY, PROC_FRAME_SZ);
+  if (item != NULL && item_size == PROC_FRAME_SZ) {
+    ESP_LOGV(TAG, "recv bytes=%d", item_size);
 
-// Calculate the microphone interface settings and start the microphone
-void MicReader::Setup() {
-  DEBUG_PRINTF("dma_frame_num: %ld, dma_desc_num: %ld,  polling_buffer_size: %ld, fragment_buffer_size: %ld\n",
-    io_plan_.dma_frame_num, io_plan_.dma_desc_num, io_plan_.polling_buffer_size, io_plan_.read_fragment_size);
-  mic_->end();
-  errors_ += mic_->begin(A_SAMPLE_RATE, io_plan_, 0, 
-#if defined(A_HW_BITS_PER_SAMPLE_DATA_8BIT)
-                bwBitWidth8,
-#elif defined(A_HW_BITS_PER_SAMPLE_DATA_16BIT)
-                bwBitWidth16,
-#elif defined(A_HW_BITS_PER_SAMPLE_DATA_24BIT)
-                bwBitWidth24,
-#elif defined(A_HW_BITS_PER_SAMPLE_DATA_32BIT)
-                bwBitWidth32,
-#else
-                #error Unsupported BPS!
-#endif
-                stStdRight, smMono,
-#if defined(A_HW_BIT_SHIFT) 
-                bsEnable
-#else
-                bsDisable                               
-#endif                
-                );
-  fz_ = 0;
-}
-
-// Stop the microphone 
-void MicReader::Close() {
-  mic_->end();    
-}
-
-// Main stream function: read, detect, preprocess
-size_t MicReader::Collect(Preprocessor* pp, void** dst, int flag) {
-  if (!pp) {
-    fz_ = Read(reinterpret_cast<uint8_t *>(audioBuffer_), hw_kws_duration_size_);
-    return fz_;
-  } // !pp
-
-  if (!dst) 
-    return 0; 
-  if (!fz_)
+    for (size_t j = 0; j < FRAME_LEN; j++) {
+      int32_t val = convert_hw_bytes(&item[j * HW_ELEM_BYTES], HW_ELEM_BYTES);
+      dst[j] = filter.proc_val(val);
+      const size_t abs_val = abs(dst[j]); 
+      if (abs_val > max_abs) {
+        max_abs = abs_val;
+      }
+    }
+    vRingbufferReturnItem(xMicRingBuffer, (void *)item);
     return 0;
-
-  { // Process
-    DEBUG_SCOPE_TIMER("Process");
-    fz_ = SampleProcess(audioBuffer_, fz_);
+  } else {
+    ESP_LOGE(TAG, "failed to receive item");
+    return -1;
   }
-#ifdef A_MON_ENABLE
-  mon(audioBuffer_, fz_, A_BYTES_PER_SAMPLE_DATA);
-#endif // A_MON_ENABLE
-  size_t apply = 0;
-  { // MFCC
-    DEBUG_SCOPE_TIMER("MFCC");
-    apply = pp->Apply(audioBuffer_, kws_duration_size_, *dst, 0);
-  } // MFCC
-  fz_ = 0;
-  return apply;
-}
+};
 
-size_t MicReader::Read(void* dst, size_t bytes) {
-  size_t sz = 0;
-  if (dst && bytes) 
-    while (bytes >= (sz + io_plan_.read_fragment_size))
-      sz += mic_->read(reinterpret_cast<uint8_t *>(dst) + sz, io_plan_.read_fragment_size);
-  return sz;
-}
+static void mic_proc_task(void *pv) {
+  size_t env = 0;
+  size_t silence_env_acc = 0;
+  size_t silence_env_frames_counter = 0;
+  size_t cur_frame = 0;
+  size_t num_voiced = 0;
+  uint8_t trig = 0;
+  KWSWordDesc_t word;
 
-// Return the desired size of the audio stream reading transaction
-size_t MicReader::GetFragmentSize() {
-  return io_plan_.read_fragment_size;
-}
-
-// Return microphone interface driver buffer size
-size_t MicReader::GetBufferSize() {
-  return io_plan_.polling_buffer_size;
-}
-
-/*! 
- * \brief Convert a stream
- *
- * \param buf[in] buffer of analyzed stream data
- * \param bytes[in] buffer size
- * \return conversion stream data buffer size
- */
-size_t MicReader::SampleProcess(void* buf, size_t bytes) {
-#if A_BYTES_PER_SAMPLE_DATA > A_HW_BYTES_PER_SAMPLE_DATA
-#error Unsupported BPS!
-#endif
-
-#define SP_DATA_OFFSET   (A_HW_BYTES_PER_SAMPLE_DATA - A_BYTES_PER_SAMPLE_DATA)
-
-#if defined(A_VOLUME_X2)
-#define SP_VOLUME_SHT  1
-#define SP_VOLUME_MSK  0x40
-#elif defined(A_VOLUME_X4)
-#define SP_VOLUME_SHT  2
-#define SP_VOLUME_MSK  0x60
-#elif defined(A_VOLUME_X8)
-#define SP_VOLUME_SHT  3
-#define SP_VOLUME_MSK  0x70
-#elif defined(A_VOLUME_X16)
-#define SP_VOLUME_SHT  4
-#define SP_VOLUME_MSK  0x78
-#elif defined(A_VOLUME_X32)
-#define SP_VOLUME_SHT  5
-#define SP_VOLUME_MSK  0x7C
-#elif defined(A_VOLUME_X64)
-#define SP_VOLUME_SHT  6
-#define SP_VOLUME_MSK  0x7E
-#elif defined(A_VOLUME_X128)
-#define SP_VOLUME_SHT  7
-#define SP_VOLUME_MSK  0x7F
-#else
-#define SP_VOLUME_SHT  0
-#define SP_VOLUME_MSK  0x00
-#endif
-
-  if ((A_BYTES_PER_SAMPLE_DATA == A_HW_BYTES_PER_SAMPLE_DATA) && (SP_VOLUME_SHT == 0))
-    return bytes;
-
-  uint8_t* s = reinterpret_cast<uint8_t*>(buf);
-  uint8_t* d = reinterpret_cast<uint8_t*>(buf);
-  const size_t samples = bytes / A_HW_BYTES_PER_SAMPLE_DATA;
-
-  if (SP_VOLUME_SHT == 0) {
-    // No sample reference level increase
-    for (size_t z = 0; z < samples; z++) {
-      s += SP_DATA_OFFSET;
-      for (int i = 0; i < A_BYTES_PER_SAMPLE_DATA; i++) {
-        *d++ = *s++;
-      }
+  for (size_t i = 0; i < DET_VOICED_FRAMES_WINDOW; i++) {
+    audio_t *proc_data = (audio_t*)&current_frames[(i % DET_VOICED_FRAMES_WINDOW) * FRAME_SZ];
+    size_t max_abs = 0;
+    if (read_frame(proc_data, s_filter, max_abs) < 0) {
+      continue;
     }
-    return samples * A_BYTES_PER_SAMPLE_DATA;
+    env += max_abs;
+    max_abs_arr[i] = max_abs;
   }
-  // Sample reference level increase
-  uint32_t val;
-  int sat;
-  for (size_t z = 0; z < samples; z++) {
-    // Collect, convert and increase the sample reference value
-    sat = 0;
-    if (s[A_HW_BYTES_PER_SAMPLE_DATA - 1] & 0x80) {
-      if ((s[A_HW_BYTES_PER_SAMPLE_DATA - 1] & SP_VOLUME_MSK) != SP_VOLUME_MSK) {
-        sat = 1;
-        for (int i = 0; i < A_BYTES_PER_SAMPLE_DATA; i++)
-          d[i] = 0;
-        d[A_BYTES_PER_SAMPLE_DATA - 1] |= 0x80;
+  env = env / DET_VOICED_FRAMES_WINDOW;
+  s_silence_env = env;
+  ESP_LOGI(TAG, "init env=%d", env);
+
+  for (;;) {
+    audio_t *proc_data = (audio_t*)&current_frames[(cur_frame % DET_VOICED_FRAMES_WINDOW) * FRAME_SZ];
+    size_t max_abs = 0;
+    if (read_frame(proc_data, s_filter, max_abs) < 0) {
+      continue;
+    }
+
+    max_abs_arr[cur_frame % DET_VOICED_FRAMES_WINDOW] = max_abs;
+
+    const uint8_t is_speech = max_abs > env * DET_IS_VOICED_THRESHOLD;
+    num_voiced += is_speech;
+    is_speech_arr[cur_frame % DET_VOICED_FRAMES_WINDOW] = is_speech;
+
+    if (!trig) {
+      if (num_voiced >= DET_VOICED_FRAMES_THRESHOLD) {
+        word.frame_num = 0;
+        word.max_abs = 0;
+        trig = 1;
+        silence_env_frames_counter = 0;
+        silence_env_acc = 0;
+        ESP_LOGD(TAG, "__start[%d]=%d, max_abs=%d, env=%d, s_silence_env=%d", cur_frame - DET_VOICED_FRAMES_WINDOW, cur_frame, max_abs, env, s_silence_env);
+        for (size_t k = 1; k <= DET_VOICED_FRAMES_WINDOW; k++) {
+          const size_t frame_num = (cur_frame + k) % DET_VOICED_FRAMES_WINDOW;
+          audio_t* frame_ptr = (audio_t*)&current_frames[frame_num * FRAME_SZ];
+          const auto xBytesSent = xStreamBufferSend(xKWSFramesBuffer, frame_ptr, FRAME_SZ, 0);
+          if (xBytesSent < FRAME_SZ) {
+            ESP_LOGW(TAG, "xKWSFramesBuffer: xBytesSent=%d (%d)", xBytesSent, FRAME_SZ);
+          }
+          word.frame_num++;
+          word.max_abs = std::max(word.max_abs, max_abs_arr[frame_num]);
+        }
+      } else {
+        env = std::max(max_abs_arr[(cur_frame + 1)  % DET_VOICED_FRAMES_WINDOW], s_silence_env);
+        if (silence_env_frames_counter++ >= DET_SILENCE_ENV_FRAME_NUM) {
+          s_silence_env = silence_env_acc / DET_SILENCE_ENV_FRAME_NUM;
+          ESP_LOGD(TAG, "s_silence_env=%d", s_silence_env);
+          xEventGroupClearBits(xStatusEventGroup, STATUS_MIC_ENV_BITS_MSK);
+          if (s_silence_env > 300) {
+            xEventGroupSetBits(xStatusEventGroup, STATUS_MIC_BAD_ENV_MSK);
+          } else if (s_silence_env > 100) {
+            xEventGroupSetBits(xStatusEventGroup, STATUS_MIC_NOISY_ENV_MSK);
+          }
+          silence_env_frames_counter = 0;
+          silence_env_acc = 0;
+        } else {
+          silence_env_acc += max_abs;
+        }
+      }
+    } else {
+      if (num_voiced <= DET_UNVOICED_FRAMES_THRESHOLD) {
+        trig = 0;
+        ESP_LOGD(TAG, "__end[%d]=%d, max_abs=%d, env=%d, s_silence_env=%d", cur_frame - DET_VOICED_FRAMES_WINDOW, cur_frame, max_abs, env, s_silence_env);
+        xQueueSend(xKWSWordQueue, &word, 0);
+      } else {
+        word.frame_num++;
+        word.max_abs = std::max(word.max_abs, max_abs);
+        const auto xBytesSent = xStreamBufferSend(xKWSFramesBuffer, proc_data, FRAME_SZ, 0);
+        if (xBytesSent < FRAME_SZ) {
+          ESP_LOGW(TAG, "xKWSFramesBuffer: xBytesSent=%d (%d)", xBytesSent, FRAME_SZ);
+        }
       }
     }
-    else if (s[A_HW_BYTES_PER_SAMPLE_DATA - 1] & SP_VOLUME_MSK) {
-      sat = 1;
-      for (int i = 0; i < A_BYTES_PER_SAMPLE_DATA; i++)
-        d[i] = 0xFF;
-      d[A_BYTES_PER_SAMPLE_DATA - 1] &= 0x7F;
-    }
-    if (!sat) {
-      val = s[0] & 0xFF;
-#if A_HW_BYTES_PER_SAMPLE_DATA == 2
-      val |= s[1] << 8;
-#elif A_HW_BYTES_PER_SAMPLE_DATA == 3
-      val |= ((s[2] << 8) | s[1]) << 8;
-#elif A_HW_BYTES_PER_SAMPLE_DATA == 4
-      val |= ((((s[3] << 8) | s[2]) << 8) | s[1]) << 8;
-#endif
-      val <<= SP_VOLUME_SHT;
-      val >>= (SP_DATA_OFFSET * 8);
-      for (int i = 0; i < A_BYTES_PER_SAMPLE_DATA; i++) {
-        d[i] = static_cast<uint8_t>(val);
-        val >>= 8;
+
+    num_voiced -= is_speech_arr[(cur_frame + 1) % DET_VOICED_FRAMES_WINDOW];
+    
+    cur_frame++;
+  }
+}
+
+static float compute_mean(const audio_t *data, size_t samples) {
+  int32_t sum = 0;
+  for (size_t i = 0; i < samples; i++) {
+    sum += data[i];
+  }
+  return sum / int32_t(samples);
+}
+
+static float compute_std_dev(const audio_t *data, size_t samples, float mean_val) {
+  float sum_sq = 0;
+  for (size_t i = 0; i < samples; i++) {
+    sum_sq += std::pow(data[i] - mean_val, 2);
+  }
+  return std::sqrt(sum_sq / float(samples));
+}
+
+static bool test_microphone(const audio_t *data, size_t samples) {
+  const auto mean = compute_mean(data, samples);
+  const auto std_dev = compute_std_dev(data, samples, mean);
+  ESP_LOGV(TAG, "mean=%f, std_dev=%f", mean, std_dev);
+  if (abs(mean) > 1000) {
+    return false;
+  }
+  const size_t mic_data_def_std_dev = 1 << (8 * HW_ELEM_BYTES - 3); // 1/4 of dynamic range
+  if (std_dev > mic_data_def_std_dev) {
+    return false;
+  }
+  return true;
+}
+
+bool mic_reader_init() {
+  i2s_receiver_init();
+  mic_conf_t mic_conf[2] = {
+    {
+      .sample_rate = KWS_SAMPLE_RATE,
+      .slot_type = stStdRight,
+    },
+    {
+      .sample_rate = KWS_SAMPLE_RATE,
+      .slot_type = stStdLeft,
+    },
+  };
+
+  bool init_result = false;
+  for (size_t i = 0; i < sizeof(mic_conf) / sizeof(mic_conf[0]); ++i) {
+    ESP_LOGD(TAG, "Try conf[%d]", i);
+    i2s_rx_slot_init(mic_conf[i]);
+    i2s_rx_slot_start();
+
+    if (i == 0) {
+      // read first bad samples, init filter
+      for (size_t i = 0; i < FILTER_INIT_FRAME_NUM; i++) {
+        audio_t *proc_data = (audio_t*)&current_frames[0];
+        size_t max_abs = 0;
+        read_frame(proc_data, s_filter, max_abs);
       }
-      if (s[A_HW_BYTES_PER_SAMPLE_DATA - 1] & 0x80)
-        d[A_BYTES_PER_SAMPLE_DATA - 1] |= 0x80;
-      else
-        d[A_BYTES_PER_SAMPLE_DATA - 1] &= 0x7F;
     }
-    d += A_BYTES_PER_SAMPLE_DATA;
-    s += A_HW_BYTES_PER_SAMPLE_DATA;
-  } // for
-  return samples * A_BYTES_PER_SAMPLE_DATA;
+
+    size_t bad_frames = 0;
+    for (size_t i = 0; i < MIC_TEST_FRAME_NUM; i++) {
+      audio_t *proc_data = (audio_t*)&current_frames[0];
+      size_t max_abs = 0;
+      read_frame(proc_data, s_filter, max_abs);
+      bad_frames += test_microphone(proc_data, FRAME_LEN) == false;
+    }
+    if (bad_frames == 0) {
+      i2s_rx_slot_stop();
+      init_result = true;
+      break;
+    } else {
+      i2s_rx_slot_stop();
+      i2s_rx_slot_release();
+    }
+  }
+  if (!init_result) {
+    ESP_LOGE(TAG, "Unable to init microphone");
+    return false;
+  }
+
+  auto xReturned =
+    xTaskCreate(mic_proc_task, "mic_proc_task", configMINIMAL_STACK_SIZE + 1024 * 16, NULL, 2, NULL);
+  if (xReturned != pdPASS) {
+    ESP_LOGE(TAG, "Error creating mic_proc_task");
+    return false;
+  }
+  return true;
+}
+
+void mic_reader_release() {
+  i2s_rx_slot_release();
+}
+
+size_t mic_reader_get_env() {
+  return s_silence_env;
 }

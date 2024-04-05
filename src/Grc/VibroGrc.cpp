@@ -1,68 +1,67 @@
 #include "VibroGrc.hpp"
 
-static RT calcVectLen(const MatrixDyn &vec) {
-  auto sumSq = [](MatrixDyn &mat, unsigned row, unsigned col, void *parm) {
-    const RT val = mat(row, col);
-    *(RT *)parm += val * val;
+static float calcVectLen(const Matrix &vec) {
+  auto sumSq = [](Matrix &mat, unsigned row, unsigned col, void *parm) {
+    const float val = mat(row, col);
+    *(float *)parm += val * val;
     return WC_NEXT;
   };
-  RT sum = 0;
-  walk(const_cast<MatrixDyn &>(vec), sumSq, &sum);
+  float sum = 0;
+  walk(const_cast<Matrix &>(vec), sumSq, &sum);
   return sqrt(sum);
 }
 
-static void shift(MatrixDyn &signal, SignalStat &tstat) {
-  auto shift = [](MatrixDyn &mat, unsigned row, unsigned col, void *parm) {
-    mat(row, col) -= (*(MatrixDyn *)parm)(row, 0);
+static void shift(Matrix &signal, SignalStat &tstat) {
+  auto shift = [](Matrix &mat, unsigned row, unsigned col, void *parm) {
+    mat(row, col) -= (*(Matrix *)parm)(row, 0);
     return WC_NEXT;
   };
   walk(signal, shift, &tstat.Mean);
 }
 
-static void scale(MatrixDyn &signal, SignalStat &tstat) {
-  auto scale = [](MatrixDyn &mat, unsigned row, unsigned col, void *parm) {
-    mat(row, col) /= 2 * *(RT *)parm;
+static void scale(Matrix &signal, SignalStat &tstat) {
+  auto scale = [](Matrix &mat, unsigned row, unsigned col, void *parm) {
+    mat(row, col) /= 2 * *(float *)parm;
     return WC_NEXT;
   };
-  RT len = calcVectLen(tstat.StDev);
+  float len = calcVectLen(tstat.StDev);
   walk(signal, scale, &len);
 }
 
-static void adjustSignal(MatrixDyn &signal, SignalStat &tstat) {
+static void adjustSignal(Matrix &signal, SignalStat &tstat) {
   shift(signal, tstat);
   scale(signal, tstat);
 }
 
-static bool checkThreshold(const MatrixDyn &val, const MatrixDyn &eta,
-                           const MatrixDyn &stdv, float factor) {
-  auto check = [](MatrixDyn &mat, unsigned row, unsigned col, void *parm) {
+static bool checkThreshold(const Matrix &val, const Matrix &eta,
+                           const Matrix &stdv, float factor) {
+  auto check = [](Matrix &mat, unsigned row, unsigned col, void *parm) {
     return mat(row, col) >= 0 ? WC_NEXT : WC_STOP;
   };
 
-  MatrixDyn diff = val - (eta - stdv * factor / 2.f);
+  Matrix diff = val - (eta - stdv * (factor / 2));
   if (!walk(diff, check, NULL))
     return false;
 
-  diff = (eta + stdv * factor / 2.f) - val;
+  diff = (eta + stdv * (factor / 2)) - val;
   if (!walk(diff, check, NULL))
     return false;
 
   return true;
 }
 
-int VibroGrc::train(const MatrixDyn &signal, int category) {
-  auto input = signal;
+int VibroGrc::train(Matrix &signal, int category) {
   if (category <= -1 || category >= train_stats_.size()) {
     train_stats_.push_back({});
   }
   auto &tstat = train_stats_.back();
-  tstat.calcSignal(input, hp.SeparateInaccuracies);
-  adjustSignal(input, tstat);
-  const auto vec = saveToVect(input);
+  tstat.calcSignal(signal, hp.SeparateInaccuracies);
+  adjustSignal(signal, tstat);
+  const auto vec = saveToVect(signal);
   return grc_.train(vec.size(), vec.data(), category);
 }
 
-int VibroGrc::inference(const MatrixDyn &signal) {
+int VibroGrc::inference(Matrix &signal) {
   // use train stat info for each category to preprocess the signal
   for (int i = 0; i < train_stats_.size(); ++i) {
     auto input = signal;
@@ -82,20 +81,22 @@ int VibroGrc::inference(const MatrixDyn &signal) {
   return -1;
 }
 
-unsigned VibroGrc::save(std::vector<RT> &data) {
+unsigned VibroGrc::save(std::vector<float> &data) {
   const auto qty = BaseGrc::save(data);
 
   for (const auto &tstat : train_stats_) {
-    data.insert(data.end(), tstat.Mean.begin(),
-                tstat.Mean.end());
-    data.insert(data.end(), tstat.StDev.begin(),
-                tstat.StDev.end());
+    for (unsigned i = 0; i < tstat.Mean.numRows(); i++)
+      for (unsigned j = 0; j < tstat.Mean.numCols(); j++)
+        data.push_back(tstat.Mean(i, j));
+    for (unsigned i = 0; i < tstat.StDev.numRows(); i++)
+      for (unsigned j = 0; j < tstat.StDev.numCols(); j++)
+        data.push_back(tstat.StDev(i, j));
   }
 
   return qty;
 }
 
-bool VibroGrc::load(unsigned qty, const std::vector<RT> &data) {
+bool VibroGrc::load(unsigned qty, const std::vector<float> &data) {
   const auto _data = loadSignalStat(qty, data);
   if (BaseGrc::load(qty, _data)) {
     return true;
@@ -103,35 +104,32 @@ bool VibroGrc::load(unsigned qty, const std::vector<RT> &data) {
   return false;
 }
 
-std::vector<RT> VibroGrc::loadSignalStat(unsigned qty,
-                                         const std::vector<RT> &data) {
+std::vector<float> VibroGrc::loadSignalStat(unsigned qty,
+                                            const std::vector<float> &data) {
   LOGD(name_, "load train stat");
-  auto load = [](MatrixDyn &mat, unsigned rows, unsigned cols,
-                 std::vector<RT>::const_iterator it) {
-    const size_t size = rows * cols;
-    const auto end = std::next(it, size);
-    mat = MatrixDyn(it, end);
-    mat.reshape(rows, cols);
-    return end;
-  };
 
   train_stats_.clear();
-  const auto rows = hp.SeparateInaccuracies ? hp.InputComponents : 1;
-  const auto cols = 1;
-  // skip weights
-  const auto wgt_end = data.end() - qty * rows * cols * 2;
-  auto it = wgt_end;
-  for (unsigned i = 0; i < qty; i++) {
-    train_stats_.push_back({});
-    auto &tstat = train_stats_.back();
-    // construct matrix and move iterator to end
-    it = load(tstat.Mean, rows, cols, it);
-    it = load(tstat.StDev, rows, cols, it);
+  const unsigned rows = hp.SeparateInaccuracies ? SIGNAL_COMPS_NUM : 1;
+  const unsigned cols = 1;
+  const unsigned fields_num = 2;
+  const auto matrix_sz = rows * cols;
+  const auto total_sz = qty * matrix_sz * fields_num;
+  const auto *wgt_beg = data.data();
+  if (total_sz < data.size()) {
+    // skip weights
+    const auto *wgt_end = wgt_beg + data.size() - total_sz;
+    for (unsigned i = 0; i < qty; i++) {
+      train_stats_.push_back({});
+      auto &tstat = train_stats_.back();
+      const auto offset = i * matrix_sz * fields_num;
+      tstat.Mean = Matrix((Matrix::ElmType *)wgt_end + offset, rows, cols, true,
+                          false, false);
+      tstat.StDev = Matrix((Matrix::ElmType *)wgt_end + offset + matrix_sz,
+                           rows, cols, true, false, false);
+    }
+    return std::vector<float>(wgt_beg, wgt_end);
   }
-  if (it != data.end()) {
-    LOGE(name_, "Error loading train stats");
-  }
-  return std::vector<RT>(data.begin(), wgt_end);
+  return data;
 }
 
 int VibroGrc::clear() {
@@ -139,32 +137,32 @@ int VibroGrc::clear() {
   return BaseGrc::clear();
 }
 
-void VibroGrc::preprocess(MatrixDyn &signal, InferStat &istat,
+void VibroGrc::preprocess(Matrix &signal, InferStat &istat,
                           SignalStat &tstat) const {
-  LOGD(TAG, __FUNCTION__);
+  LOGD(name_, __FUNCTION__);
 
   istat.calcSignal(signal, hp.SeparateInaccuracies);
 
   rotate(signal, istat, tstat);
 
   istat.fail = 0;
-  if (!checkThreshold(istat.Mean, tstat.Mean,
-                      tstat.StDev, float(hp.ThresholdFactor))) {
+  if (!checkThreshold(istat.Mean, tstat.Mean, tstat.StDev,
+                      float(hp.ThresholdFactor))) {
     istat.mean_fail = true;
   }
-  if (!checkThreshold(istat.StDev, tstat.StDev,
-                      tstat.StDev, float(hp.ThresholdFactor))) {
+  if (!checkThreshold(istat.StDev, tstat.StDev, tstat.StDev,
+                      float(hp.ThresholdFactor))) {
     istat.stdev_fail = true;
   }
 
   adjustSignal(signal, tstat);
 }
 
-void VibroGrc::rotate(MatrixDyn &signal, InferStat &istat,
+void VibroGrc::rotate(Matrix &signal, InferStat &istat,
                       SignalStat &tstat) const {
-  const RT coef = 1;
-  MatrixDyn rot = coef * tstat.Mean - istat.Mean;
-  rot = repeat(rot, 1, signal.numCols());
+  const float coef = 1;
+  Matrix rot = tstat.Mean * coef - istat.Mean;
+  rot = rot.repeat(1, signal.numCols());
   signal += rot;
 
   istat.calcSignal(signal, hp.SeparateInaccuracies);

@@ -1,31 +1,15 @@
 set(3RDPARTY_DIR "${PROJECT_DIR}/3rdparty")
 
-# Set model type
-set(MODEL_IS_QUANT true)
-if(MODEL_IS_QUANT)
-    set(MODEL_DIR "model_quant")
-    set(MODEL_INPUT_BYTES 1)
-    set(MODEL_OUTPUT_BYTES 1)
-else()
-    set(MODEL_DIR "model")
-    set(MODEL_INPUT_BYTES 4)
-    set(MODEL_OUTPUT_BYTES 4)
-endif()
-
-
-# Set kws srcs and incs
-set(KWS_DIR "./KWS/")
+set(KWS_DIR "${PROJECT_DIR}/src/KWS/")
 set(KWS_SRC
     "${KWS_DIR}/kws.cpp"
-    "${KWS_DIR}/${MODEL_DIR}/codegen/host/src/kws_lib0.c"
-    "${KWS_DIR}/${MODEL_DIR}/codegen/host/src/kws_lib1.c"
-    "${KWS_DIR}/${MODEL_DIR}/runtime/src/runtime/crt/memory/stack_allocator.c"
-    "${KWS_DIR}/${MODEL_DIR}/runtime/src/runtime/crt/common/crt_backend_api.c"
+    "${KWS_DIR}/model.cpp"
+    "${KWS_DIR}/kws_preprocessor.cpp"
+    "${KWS_DIR}/mfcc/mfcc.cpp"
 )
 set(KWS_INC
     "${KWS_DIR}/"
-    "${KWS_DIR}/${MODEL_DIR}/runtime/include"
-    "${KWS_DIR}/${MODEL_DIR}/codegen/host/include"
+    "${KWS_DIR}/mfcc"
 )
 
 
@@ -46,23 +30,12 @@ set(RISCV_MATH_INC
 )
 
 
-# Set micro srcs and incs
-set(MFCC_SRC "${KWS_DIR}/mfcc_preprocessor/")
 set(MIC_SRC
-    "./MicReader/audio_rx_slot.cpp"
-    "./MicReader/mic_reader.cpp"
-    "./MicReader/utils.cpp"
-    "./MicReader/fragment_detector.cpp"
-    "./MicReader/mic_fragment_reader.cpp"
-    "${MFCC_SRC}/mfcc_preprocessor.cpp"
-    "${MFCC_SRC}/mfcc/mfcc.cpp"
-    "${RISCV_MATH_SRC}"
+    "${PROJECT_DIR}/src/MicReader/i2s_rx_slot.cpp"
+    "${PROJECT_DIR}/src/MicReader/mic_reader.cpp"
 )
 set(MIC_INC
-    "./MicReader/"
-    "${MFCC_SRC}/"
-    "${MFCC_SRC}/mfcc"
-    "${RISCV_MATH_INC}"
+    "${PROJECT_DIR}/src/MicReader/"
 )
 
 set(GRC_SDK_DIR "${3RDPARTY_DIR}/grc_sdk")
@@ -109,29 +82,39 @@ idf_component_register(
     "./Grc/VibroGrc.cpp"
     "./Grc/GestureGrc.cpp"
     "./Grc/RhythmGrc.cpp"
+    "./Grc/reservoirs/gesture_reservoir_encrypted.c"
+    "./Grc/reservoirs/knock_reservoir_encrypted.c"
+    "./Grc/reservoirs/vibro_reservoir_encrypted.c"
 
     "./App/GestureScenario.cpp"
     "./App/RhythmScenario.cpp"
     "./App/VibroScenario.cpp"
+    "./App/VoicePINcodeScenario.cpp"
     "./App/App.cpp"
     "./App/KWS.cpp"
     "./App/Event.cpp"
     "./App/Listener.cpp"
-    "./App/GrcController.cpp"
+    "./App/GrcHelper.cpp"
     "./App/Status.cpp"
 
     "./Common/Common.cpp"
-    "./Common/Statistics.cpp"
     "./Common/Log.cpp"
 
-    "Hardware/Accelerometer.cpp"
-    "Hardware/Led.cpp"
-    "Hardware/Lcd.cpp"                            
-    "Hardware/Button.cpp"
-    "Hardware/I2C.cpp"
-    "Hardware/NVStorage.cpp"
+    "./VoiceMsgPlayer/I2sTx.cpp"
+    "./VoiceMsgPlayer/WavPlayer.cpp"
+    "./VoiceMsgPlayer/VoiceMsgPlayer.cpp"
+    "./VoiceMsgPlayer/Samples.cpp"
 
-    ${KWS_SRC} ${MIC_SRC}
+    "./Hardware/Accelerometer.cpp"
+    "./Hardware/Led.cpp"
+    "./Hardware/Lcd.cpp"
+    "./Hardware/Button.cpp"
+    "./Hardware/I2C.cpp"
+    "./Hardware/NVStorage.cpp"
+
+    ${RISCV_MATH_SRC}
+    ${KWS_SRC}
+    ${MIC_SRC}
     ${U8G2_SRC}
     ${GRC_SDK_SRC}
 
@@ -140,9 +123,11 @@ idf_component_register(
     "./Grc/include"
     "./App/include"
     "./Hardware"
+    "./VoiceMsgPlayer"
 
-    "${3RDPARTY_DIR}/NumCpp/include"
-    ${KWS_INC} ${MIC_INC}
+    ${RISCV_MATH_INC}
+    ${KWS_INC}
+    ${MIC_INC}
     ${U8G2_INC}
     ${GRC_SDK_INC}
 
@@ -154,31 +139,14 @@ idf_component_register(
 )
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-error=unused-const-variable -Wno-error=delete-non-virtual-dtor -Wno-error=implicit-function-declaration -fpermissive)
-target_compile_options(${COMPONENT_LIB} PUBLIC "-DLOG_LOCAL_LEVEL=ESP_LOG_INFO")
 add_compile_definitions(USE_LOG=1)
 add_compile_definitions(LOG_LEVEL=LOG_LEVEL_INFO)
+add_compile_definitions(PRINT_RHYTHM_SIG)
 # add_compile_definitions(NO_LCD)
 
-add_compile_definitions(NUMCPP_NO_USE_BOOST)
 add_compile_definitions(U8X8_USE_PINS)
 
 # Set defines
-add_compile_definitions(A_SAMPLE_RATE=16000)
-add_compile_definitions(A_BITS_PER_SAMPLE_DATA_16BIT)
-add_compile_definitions(A_HW_BITS_PER_SAMPLE_DATA_16BIT)
-add_compile_definitions(A_VOLUME_X32)
-add_compile_definitions(USE_AVERAGE_SIG)
-add_compile_definitions(A_MFCC_ENVIRONMENT_PREPARED_TEMPLATE)
-add_compile_definitions(GET_MFCC=1)
-add_compile_definitions(KWS_NUM_MFCC=10)
-add_compile_definitions(KWS_WIN_MS=40)
-add_compile_definitions(KWS_STRIDE_MS=20)
-
-if(MODEL_IS_QUANT)
-    add_compile_definitions(KWS_INPUT_SCALE=1.0835615396499634)
-    add_compile_definitions(KWS_INPUT_ZERO=100)
-    add_compile_definitions(KWS_OUTPUT_SCALE=0.00390625)
-    add_compile_definitions(KWS_OUTPUT_ZERO=-128)
-endif()
-add_compile_definitions(MODEL_IN_BYTES=${MODEL_INPUT_BYTES})
-add_compile_definitions(MODEL_OUT_BYTES=${MODEL_OUTPUT_BYTES})
+add_compile_definitions(KWS_SAMPLE_RATE=16000)
+add_compile_definitions(KWS_GET_MFCC=1)
+add_compile_definitions(KWS_INFERENCE_THRESHOLD=0.5)

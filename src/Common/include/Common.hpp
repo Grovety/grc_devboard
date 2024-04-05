@@ -4,10 +4,6 @@
 #include "freertos/task.h"
 #include "Log.hpp"
 
-inline void delayMS(unsigned time_ms) {
-  vTaskDelay(time_ms / portTICK_PERIOD_MS);
-}
-
 inline unsigned getTimeMS() { return xTaskGetTickCount() * portTICK_PERIOD_MS; }
 
 #ifndef _countof
@@ -19,31 +15,30 @@ inline unsigned getTimeMS() { return xTaskGetTickCount() * portTICK_PERIOD_MS; }
   * \param mat Matrix.
   * \return Vector.
   */
-std::vector<float> saveToVect(const MatrixDyn &mat);
-/*!
-  * \brief Construct matrix from raw data.
-  * \param rows Number of rows.
-  * \param cols Number of columns.
-  * \param ptr Buffer.
-  */
-void makeMatrix(MatrixDyn &mat, unsigned rows, unsigned cols, const float *ptr);
+std::vector<float> saveToVect(const Matrix &mat);
 /*!
   * \brief Print matrix to STDOUT.
   * \param mat Matrix.
   * \param name Name.
   * \param sep Separator.
   */
-void printMatrix(const MatrixDyn &mat, const char *name,
+void printMatrix(const Matrix &mat, const char *name,
                  const char sep = '\t');
 /*!
-  * \brief Concatenate matrices by columns.
-  * \param dst Destination.
-  * \param src Source.
+  * \brief Convert signal data to Matrix.
+  * \param data Signal data.
+  * \param copy Whether to create copy.
+  * \param take_ownership Whether to take ownership.
+  * \param return Matrix.
   */
-void concat(MatrixDyn &dst, const MatrixDyn &src);
+inline Matrix convert(const SignalData_t &data, bool copy, bool take_ownership) {
+  Matrix ret((Matrix::ElmType *)data.buffer, data.num_rows, data.num_cols, copy, take_ownership, true);
+  ret.trans();
+  return ret;
+}
 
 enum WALK_CMD { WC_NEXT, WC_SKIP, WC_STOP };
-typedef WALK_CMD (*WalkFuncDyn)(MatrixDyn &mat, unsigned row, unsigned col,
+typedef WALK_CMD (*WalkFuncDyn)(Matrix &mat, unsigned row, unsigned col,
                                 void *data);
 /*!
   * \brief Apply func on every element of matrix.
@@ -52,4 +47,4 @@ typedef WALK_CMD (*WalkFuncDyn)(MatrixDyn &mat, unsigned row, unsigned col,
   * \param data User data.
   * \return Whether to stop.
   */
-bool walk(MatrixDyn &mat, WalkFuncDyn func, void *data = nullptr);
+bool walk(Matrix &mat, WalkFuncDyn func, void *data = nullptr);

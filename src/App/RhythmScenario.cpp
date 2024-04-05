@@ -1,411 +1,377 @@
 #include "App.hpp"
 #include "RhythmGrc.hpp"
 
-constexpr char TAG[] = "RhythmScenario";
+#include "kws_preprocessor.h"
 
-namespace RhythmScenario {
-struct States {
-  static State &select_learn;
-  static State &select_classify;
-  static State &select_clear_dataset;
+static constexpr char TAG[] = "RhythmScenario";
 
-  static State &menu;
-  static State &back_to_menu;
-  static State &back_to_learn;
-  static State &back_to_classify;
-
-  static State &learn;
-  static State &learn_listen;
-  static State &learn_try_again;
-  static State &try_memory_write;
-  static State &save_dialog;
-  static State &overwrite_sample;
-  static State &overwrite_sample_dialog;
-  static State &select_sample;
-  static State &overwrite_dialog;
-  static State &ask_to_switch;
-
-  static State &classify;
-  static State &classify_listen;
-  static State &classify_try_again;
-  static State &process_category;
-  static State &process_no_match;
-  static State &print_category;
-
-  static State &clear_dataset_dialog;
-  static State &clear_dataset;
-};
+static constexpr const char *select_learn_str = "Learn";
+static constexpr const char *select_classify_str = "Classify";
+static constexpr const char *select_clr_data_str = "Clr data";
 
 static int s_category = -1;
 static int s_cats_qty = -1;
-static SignalData_t s_data;
+static BaseGrc *s_grc = nullptr;
 
-struct Listen : Common::Listen {
-  using Common::Listen::Listen;
-  void updateDisplay(App *app) {
-    app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
-                                 MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("Press User to go");
-    app->p_display->send();
-  }
-  void enterAction(App *app) override final {
-    s_data.buffer = new float[s_data.num_rows * s_data.num_cols];
-    Common::Listen::enterAction(app);
-  }
-  void handleEvent(App *app, eEvent ev) override final {
-    switch (ev) {
-    case eEvent::CMD_GO:
-    case eEvent::BUTTON_CLICK: {
-      delayMS(1000);
-      xQueueSend(ListenerQueues.xRxQueue, &s_data, portMAX_DELAY);
-      app->transition(forward_state_);
-    } break;
-    case eEvent::CMD_UP:
-      if (back_state_ != nullptr) {
-        if (s_data.buffer != nullptr) {
-          delete[] s_data.buffer;
-        }
-        app->transition(back_state_);
-      } else {
-        updateDisplay(app);
-      }
-      break;
-    default:
-      updateDisplay(app);
-      break;
-    }
-  }
-};
+static State* getMenu();
+static State* getAskToSwitchMenu();
+static void select_learn(App *app);
+static void select_classify(App *app);
+static void try_memory_write(App *app);
 
-struct TryAgain : State {
-  TryAgain(State *back_state) : back_state_(back_state) {}
-  void enterAction(App *app) override final {
-    xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_BAD_MSK);
-    app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
-                                 MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("Bad signal.");
-    app->p_display->print_string("Try again.");
-    app->p_display->send();
+static void printSig(const Matrix &buf, int cat = -1) {
+  if (cat == -1) {
+    printf("Rythm:    I: ");
+  } else {
+    printf("Rythm: T[%d]: ", cat + 1);
   }
-  void update(App *app) override final {
-    if (app->check_timeout(1000)) {
-      app->transition(back_state_);
-    }
-  }
-
-private:
-  State *back_state_;
-};
-
-struct Learn : State {
-  void enterAction(App *app) override final {
-    app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("Learning is on...");
-    app->p_display->send();
-  }
-  void update(App *app) override final {
-    SignalData_t data;
-    if (xQueueReceive(ListenerQueues.xTxQueue, &data, 0) == pdPASS) {
-      LOGD(TAG, "Done: num_cols=%d", data.num_cols);
-      MatrixDyn mat;
-      makeMatrix(mat, data.num_rows, data.num_cols, data.buffer);
-      // TODO: combine with preprocessing in RhythmGrc
-      if (!preprocessRhythm(mat, data.sync_time_ms)) {
-        delete[] data.buffer;
-        app->transition(&States::learn_try_again);
-      } else {
-        GrcEvent_t load_ev{eGrcEventId::LOAD_SIGNAL, new SignalData_t(data)};
-        xQueueSend(GrcControllerQueues.xRxQueue, &load_ev, portMAX_DELAY);
-        GrcEvent_t train_ev{eGrcEventId::TRAIN,
-                            new int(s_cats_qty < MAX_TRAINABLE_CATEGORIES
-                                        ? s_cats_qty
-                                        : s_cats_qty - 1)};
-        xQueueSend(GrcControllerQueues.xRxQueue, &train_ev, portMAX_DELAY);
-        app->transition(&States::save_dialog);
-      }
-    }
-  }
-};
-
-struct SaveDialog : Common::ConfirmDialog {
-  using Common::ConfirmDialog::ConfirmDialog;
-  void drawMenu(App *app) const override final {
-    app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
-                                 MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("Save rhythm?");
-    drawMenuItems(app);
-    app->p_display->send();
-  }
-};
-
-struct TryMemoryWrite : State {
-  void update(App *app) override final {
-    if (s_cats_qty + 1 > MAX_TRAINABLE_CATEGORIES) {
-      app->transition(&States::overwrite_dialog);
-    } else {
-      GrcEvent_t save_ev{eGrcEventId::SAVE_WGTS, app->p_storage.get()};
-      xQueueSend(GrcControllerQueues.xRxQueue, &save_ev, portMAX_DELAY);
-      s_cats_qty++;
-      app->transition(&RhythmScenario::States::ask_to_switch);
-    }
-  }
-};
-
-struct OverwriteDialog : Common::ConfirmDialog {
-  using Common::ConfirmDialog::ConfirmDialog;
-  void enterAction(App *app) override final {
-    Common::ConfirmDialog::enterAction(app);
-    xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_BAD_MSK);
-  }
-  void drawMenu(App *app) const override final {
-    app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("Memory is full.");
-    app->p_display->print_string("Overwrite last?");
-    drawMenuItems(app);
-    app->p_display->send();
-  }
-};
-
-struct OverwriteSample : State {
-  void update(App *app) override final {
-    GrcEvent_t save_ev{eGrcEventId::SAVE_WGTS, app->p_storage.get()};
-    xQueueSend(GrcControllerQueues.xRxQueue, &save_ev, portMAX_DELAY);
-    app->transition(&RhythmScenario::States::ask_to_switch);
-  }
-};
-
-struct Classify : State {
-  void enterAction(App *app) override final {
-    app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("Classification");
-    app->p_display->print_string("is on...");
-    app->p_display->send();
-  }
-  void update(App *app) override final {
-    SignalData_t data;
-    if (xQueueReceive(ListenerQueues.xTxQueue, &data, 0) == pdPASS) {
-      LOGD(TAG, "Done: num_cols=%d", data.num_cols);
-      MatrixDyn mat;
-      makeMatrix(mat, data.num_rows, data.num_cols, data.buffer);
-      // TODO: combine with preprocessing in RhythmGrc
-      if (!preprocessRhythm(mat, data.sync_time_ms)) {
-        delete[] data.buffer;
-        app->transition(&States::classify_try_again);
-      } else {
-        GrcEvent_t load_ev{eGrcEventId::LOAD_SIGNAL, new SignalData_t(data)};
-        xQueueSend(GrcControllerQueues.xRxQueue, &load_ev, portMAX_DELAY);
-        GrcEvent_t infer_ev{eGrcEventId::INFER, nullptr};
-        xQueueSend(GrcControllerQueues.xRxQueue, &infer_ev, portMAX_DELAY);
-        app->transition(&States::process_category);
-      }
-    }
-  }
-};
-
-struct ProcessCategory : State {
-  void update(App *app) override final {
-    s_category = Common::process_grc_replies(eGrcReplyId::CATEGORY);
-    if (s_category < 0) {
-      app->transition(&RhythmScenario::States::process_no_match);
-    } else {
-      app->transition(&RhythmScenario::States::print_category);
-    }
-  }
-};
-
-struct SelectLearn : State {
-  static constexpr const char *name = "Learn";
-
-  void exitAction(App *app) override final { app->set_ctx(name); }
-  void update(App *app) override final {
-    app->transition(&States::learn_listen);
-  }
-};
-
-struct SelectClassify : State {
-  static constexpr const char *name = "Classify";
-
-  void exitAction(App *app) override final { app->set_ctx(name); }
-  void update(App *app) override final {
-    app->transition(&States::classify_listen);
-  }
-};
-
-struct SelectClearDataset : State {
-  static constexpr const char *name = "Clr data";
-
-  void exitAction(App *app) override final { app->set_ctx(name); }
-  void update(App *app) override final {
-    app->transition(&States::clear_dataset_dialog);
-  }
-};
-
-struct MainMenu : Common::Menu {
-  using Common::Menu::Menu;
-  void drawMenu(App *app) const override final {
-    app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
-                                 MAX_TRAINABLE_CATEGORIES);
-    drawMenuItems(app);
-    app->p_display->send();
-  }
-  void enterAction(App *app) override final {
-    if (s_cats_qty == -1) {
-      app->p_display->print_header("%s", app->get_ctx());
-      app->p_display->send();
-      s_cats_qty = Common::process_grc_replies(eGrcReplyId::CATS_QTY);
-    }
-    Common::Menu::enterAction(app);
-  }
-};
-
-struct ClearDatasetDialog : Common::ConfirmDialog {
-  using Common::ConfirmDialog::ConfirmDialog;
-  void drawMenu(App *app) const override final {
-    app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
-                                 MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("Are you sure?");
-    drawMenuItems(app);
-    app->p_display->send();
-  }
-};
-
-struct ClearDataset : State {
-  void enterAction(App *app) override final {
-    app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
-                                 MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("The dataset");
-    app->p_display->print_string("is deleted");
-    app->p_display->send();
-    GrcEvent_t grc_ev{eGrcEventId::CLEAR_WGTS, app->p_storage.get()};
-    xQueueSend(GrcControllerQueues.xRxQueue, &grc_ev, portMAX_DELAY);
-    xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_GOOD_MSK);
-  }
-  void exitAction(App *app) override final {
-    xEventGroupClearBits(xStatusEventGroup, STATUS_EVENT_GOOD_MSK);
-    s_cats_qty = Common::process_grc_replies(eGrcReplyId::CATS_QTY);
-  }
-  void update(App *app) override final {
-    if (app->check_timeout(1000)) {
-      app->transition(&States::back_to_menu);
-    }
-  }
-};
-
-struct AskToSwitch : Common::Menu {
-  using Common::Menu::Menu;
-  void enterAction(App *app) override final {
-    Common::Menu::enterAction(app);
-    xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_GOOD_MSK);
-  }
-  void drawMenu(App *app) const override final {
-    app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("R%d is saved", s_cats_qty);
-    drawMenuItems(app);
-    app->p_display->send();
-  }
-};
-
-struct ProcessNoMatch : Common::Menu {
-  using Common::Menu::Menu;
-  void enterAction(App *app) override final {
-    Common::Menu::enterAction(app);
-    xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_BAD_MSK);
-  }
-  void drawMenu(App *app) const override final {
-    app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("No match");
-    drawMenuItems(app);
-    app->p_display->send();
-  }
-};
-
-struct PrintCategory : Common::Menu {
-  using Common::Menu::Menu;
-  void enterAction(App *app) override final {
-    Common::Menu::enterAction(app);
-    xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_GOOD_MSK);
-  }
-  void drawMenu(App *app) const override final {
-    app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("Rhythm %d", s_category + 1);
-    drawMenuItems(app);
-    app->p_display->send();
-  }
-};
-
-State &States::select_learn = *new SelectLearn;
-State &States::select_classify = *new SelectClassify;
-State &States::select_clear_dataset = *new SelectClearDataset;
-State &States::menu = *new MainMenu(
-    {
-        {SelectLearn::name, &States::select_learn},
-        {SelectClassify::name, &States::select_classify},
-        {SelectClearDataset::name, &States::select_clear_dataset},
-    },
-    nullptr);
-State &States::back_to_menu = *new Common::BackTo(&States::menu);
-State &States::back_to_learn = *new Common::BackTo(&States::select_learn);
-State &States::back_to_classify = *new Common::BackTo(&States::select_classify);
-
-State &States::learn = *new Learn;
-State &States::learn_listen =
-    *new Listen(&States::learn, &States::back_to_menu);
-State &States::learn_try_again = *new TryAgain(&States::learn_listen);
-State &States::try_memory_write = *new TryMemoryWrite;
-State &States::save_dialog =
-    *new SaveDialog(&States::try_memory_write, &States::learn_listen);
-State &States::overwrite_sample = *new OverwriteSample;
-State &States::overwrite_dialog =
-    *new OverwriteDialog(&States::overwrite_sample, &States::learn_listen);
-State &States::ask_to_switch = *new AskToSwitch(
-    {
-        {SelectLearn::name, &States::back_to_learn},
-        {SelectClassify::name, &States::back_to_classify},
-    },
-    &States::back_to_learn);
-
-State &States::classify = *new Classify;
-State &States::classify_listen =
-    *new Listen(&States::classify, &States::back_to_menu);
-State &States::classify_try_again = *new TryAgain(&States::classify_listen);
-State &States::process_category = *new ProcessCategory;
-State &States::process_no_match = *new ProcessNoMatch(
-    {
-        {"Try again", &States::back_to_classify},
-        {"Go to Learn", &States::back_to_learn},
-    },
-    &States::back_to_classify);
-State &States::print_category = *new PrintCategory(
-    {
-        {"Try again", &States::back_to_classify},
-        {"Go to Learn", &States::back_to_learn},
-    },
-    &States::back_to_classify);
-
-State &States::clear_dataset = *new ClearDataset;
-State &States::clear_dataset_dialog =
-    *new ClearDatasetDialog(&States::clear_dataset, &States::back_to_menu);
-} // namespace RhythmScenario
-
-void Common::InitRhythmScenario::enterAction(App *app) {
-  app->p_display->print_header("%s", app->get_ctx());
-  app->p_display->send();
+  unsigned qty = buf.getCols() / 16 - 2;
+  for (unsigned i = 0; i < qty; i += 2)
+    printf("%d ", (int)(100 * (float)buf(0, i)));
+  printf("\n");
 }
 
-void Common::InitRhythmScenario::update(App *app) {
-  p_grc = std::make_unique<RhythmGrc>();
-  int res = p_grc->init(RhythmGrc::hp);
-  if (res < 0) {
-    xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_BAD_MSK);
-    app->transition(&Common::States::select_scenario_menu);
+namespace RhythmScenario {
+  struct MainMenu : Common::Menu {
+    using Common::Menu::Menu;
+    State* clone() override final {
+      return new MainMenu(*this);
+    }
+    void drawMenu(App *app) const override final {
+      app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
+                                  MAX_TRAINABLE_CATEGORIES);
+      drawMenuItems(app);
+      app->p_display->send();
+    }
+  };
+
+  struct ProcessNoMatch : Common::Menu {
+    using Common::Menu::Menu;
+    State* clone() override final {
+      return new ProcessNoMatch(*this);
+    }
+    void enterAction(App *app) override final {
+      VoiceMsgPlay(19);
+      xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_BAD_MSK);
+      Common::Menu::enterAction(app);
+    }
+    void drawMenu(App *app) const override final {
+      app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
+      app->p_display->print_string("No match");
+      drawMenuItems(app);
+      app->p_display->send();
+    }
+  };
+
+  struct PrintCategory : Common::Menu {
+    using Common::Menu::Menu;
+    State* clone() override final {
+      return new PrintCategory(*this);
+    }
+    void enterAction(App *app) override final {
+      VoiceMsgPlay(30 + s_category);
+      VoiceMsgPlay(20);
+      xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_GOOD_MSK);
+      Common::Menu::enterAction(app);
+    }
+    void drawMenu(App *app) const override final {
+      app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
+      app->p_display->print_string("Rhythm %d", s_category + 1);
+      drawMenuItems(app);
+      app->p_display->send();
+    }
+  };
+
+  struct ClearDatasetDialog : Common::ConfirmDialog {
+    using Common::ConfirmDialog::ConfirmDialog;
+    State* clone() override final {
+      return new ClearDatasetDialog(*this);
+    }
+    void drawMenu(App *app) const override final {
+      app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
+                                  MAX_TRAINABLE_CATEGORIES);
+      app->p_display->print_string("Are you sure?");
+      drawMenuItems(app);
+      app->p_display->send();
+    }
+  };
+
+  struct SaveDialog : Common::ConfirmDialog {
+    using Common::ConfirmDialog::ConfirmDialog;
+    State* clone() override final {
+      return new SaveDialog(*this);
+    }
+    void drawMenu(App *app) const override final {
+      app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
+                                  MAX_TRAINABLE_CATEGORIES);
+      app->p_display->print_string("Save rhythm?");
+      drawMenuItems(app);
+      app->p_display->send();
+    }
+  };
+
+  struct OverwriteDialog : Common::ConfirmDialog {
+    using Common::ConfirmDialog::ConfirmDialog;
+    State* clone() override final {
+      return new OverwriteDialog(*this);
+    }
+    void drawMenu(App *app) const override final {
+      app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
+      app->p_display->print_string("Memory is full.");
+      app->p_display->print_string("Overwrite last?");
+      drawMenuItems(app);
+      app->p_display->send();
+    }
+  };
+   
+  struct ReadyToStart : State {
+    ReadyToStart(action_t action, VoiceMsgId voice_msg)
+      : action_(action), voice_msg_(voice_msg) {}
+    State* clone() override final {
+      return new ReadyToStart(*this);
+    }
+    void updateDisplay(App *app) {
+      app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
+                                  MAX_TRAINABLE_CATEGORIES);
+      app->p_display->print_string("Are you ready?");
+      app->p_display->send();
+    }
+    void enterAction(App *app) override final {
+      VoiceMsgPlay(voice_msg_);
+      updateDisplay(app);
+      kws_req_word(1);
+    }
+    void handleEvent(App *app, eEvent ev) override final {
+      switch (ev) {
+      case eEvent::BUTTON_CLICK:
+        VoiceMsgStop();
+        kws_req_cancel();
+        vTaskDelay(pdMS_TO_TICKS(500));
+        action_(app);
+        break;
+      case eEvent::CMD_YES:
+        VoiceMsgPlay(4);
+        action_(app);
+        break;
+      case eEvent::CMD_UP:
+        app->transition(getMenu());
+        break;
+      case eEvent::CMD_UNKNOWN:
+      case eEvent::CMD_NO:
+      case eEvent::CMD_ONE:
+      case eEvent::CMD_TWO:
+      case eEvent::CMD_THREE:
+      case eEvent::CMD_FOUR:
+      case eEvent::CMD_SHEILA: {
+        updateDisplay(app);
+        if (uxQueueMessagesWaiting(xKWSRequestQueue) == 0) {
+          kws_req_word(1);
+        }
+      } break;
+      default:
+        break;
+      }
+    }
+
+  protected:
+    action_t action_;
+    VoiceMsgId voice_msg_;
+  };
+
+  struct AskToSwitch : Common::Menu {
+    using Common::Menu::Menu;
+    State* clone() override final {
+      return new AskToSwitch(*this);
+    }
+    void enterAction(App *app) override final {
+      VoiceMsgPlay(25 + s_cats_qty - 1);
+      VoiceMsgPlay(7);
+      xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_GOOD_MSK);
+      Common::Menu::enterAction(app);
+    }
+    void drawMenu(App *app) const override final {
+      app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
+      app->p_display->print_string("R%d is saved", s_cats_qty);
+      drawMenuItems(app);
+      app->p_display->send();
+    }
+  };
+} // namespace RhythmScenario
+
+static void listen_signal(Matrix &signal) {
+  SignalData_t data = SignalData_t{
+    .buffer = new float[SIGNAL_SAMPLES_NUM * SIGNAL_COMPS_NUM],
+    .num_rows = SIGNAL_COMPS_NUM,
+    .num_cols = SIGNAL_SAMPLES_NUM,
+    .sync_time_ms = SIGNAL_PERIOD_MS,
+  };
+  xQueueSend(ListenerQueues.xRxQueue, &data, portMAX_DELAY);
+  xQueueReceive(ListenerQueues.xTxQueue, &data, portMAX_DELAY);
+  LOGD(TAG, "Done: num_cols=%d", data.num_cols);
+  signal = convert(data, false, true);
+}
+
+static void try_again_msg(App *app) {
+  VoiceMsgPlay(23);
+  xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_BAD_MSK);
+  app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
+                                MAX_TRAINABLE_CATEGORIES);
+  app->p_display->print_string("Bad signal.");
+  app->p_display->print_string("Try again.");
+  app->p_display->send();
+  VoiceMsgWaitStop(portMAX_DELAY);
+}
+
+static void learn(App *app) {
+  app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
+  app->p_display->print_string("Learning...");
+  app->p_display->send();
+
+  Matrix signal;
+  listen_signal(signal);
+  if (!preprocessRhythm(signal, SIGNAL_PERIOD_MS)) {
+    try_again_msg(app);
+    select_learn(app);
+    return;
+  }
+
+#ifdef PRINT_RHYTHM_SIG
+  printSig(signal, s_cats_qty);
+#endif
+  int ret = grc_helper_train(s_grc, signal, s_cats_qty < MAX_TRAINABLE_CATEGORIES
+                                            ? s_cats_qty
+                                            : s_cats_qty - 1);
+  if (ret < 0) {
+    LOGE(TAG, "train error: %d", ret);
+  }
+  app->transition(new RhythmScenario::SaveDialog(&try_memory_write, &select_learn, 24));
+}
+
+static void classify(App *app) {
+  app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
+  app->p_display->print_string("Classification");
+  app->p_display->print_string("is on...");
+  app->p_display->send();
+
+  Matrix signal;
+  listen_signal(signal);
+  if (!preprocessRhythm(signal, SIGNAL_PERIOD_MS)) {
+    try_again_msg(app);
+    select_classify(app);
+    return;
+  }
+
+#ifdef PRINT_RHYTHM_SIG
+  printSig(signal);
+#endif
+  s_category = grc_helper_infer(s_grc, signal);
+  if (s_category < 0) {
+    LOGI(TAG, "No match");
+    app->transition(new RhythmScenario::ProcessNoMatch(
+      {
+          {"Try again", &select_classify},
+          {"Go to Learn", &select_learn},
+      },
+      {select_classify_str, &select_classify})
+    );
   } else {
-    RhythmScenario::s_data.num_rows = SIGNAL_COMPS_NUM;
-    RhythmScenario::s_data.num_cols = SIGNAL_SAMPLES_NUM;
-    RhythmScenario::s_data.sync_time_ms = SIGNAL_PERIOD_MS;
-    initGrcController(p_grc.get());
-    GrcEvent_t grc_ev{eGrcEventId::LOAD_WGTS, app->p_storage.get()};
-    xQueueSend(GrcControllerQueues.xRxQueue, &grc_ev, portMAX_DELAY);
-    app->set_ctx(p_grc->getName());
-    app->transition(&RhythmScenario::States::menu);
+    LOGI(TAG, "Rhythm %d", s_category + 1);
+    app->transition(new RhythmScenario::PrintCategory(
+      {
+          {"Try again", &select_classify},
+          {"Go to Learn", &select_learn},
+      },
+      {select_classify_str, &select_classify})
+    );
+  }
+}
+
+static void select_learn(App *app) {
+  app->pop_ctx();
+  app->set_ctx(select_learn_str);
+  app->transition(new RhythmScenario::ReadyToStart(&learn, 3));
+}
+
+static void select_classify(App *app) {
+  app->pop_ctx();
+  app->set_ctx(select_classify_str);
+  app->transition(new RhythmScenario::ReadyToStart(&classify, 3));
+}
+
+static void save_samples(App *app) {
+  grc_helper_save_wgts(s_grc, app->p_storage.get());
+  app->transition(getAskToSwitchMenu());
+}
+
+static void try_memory_write(App *app) {
+  if (s_cats_qty + 1 > MAX_TRAINABLE_CATEGORIES) {
+    xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_BAD_MSK);
+    app->transition(new RhythmScenario::OverwriteDialog(&save_samples, &select_learn, 13));
+  } else {
+    s_cats_qty++;
+    save_samples(app);
+  }
+}
+
+static void back_to_menu(App *app) {
+  xEventGroupClearBits(xStatusEventGroup, STATUS_SYSTEM_BUSY_MSK);
+  app->pop_ctx();
+  app->transition(getMenu());
+}
+
+static void clear_dataset(App *app) {
+  app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
+                                MAX_TRAINABLE_CATEGORIES);
+  app->p_display->print_string("The dataset");
+  app->p_display->print_string("is deleted");
+  app->p_display->send();
+  VoiceMsgPlay(22);
+  grc_helper_clear_wgts(s_grc, app->p_storage.get());
+  s_cats_qty = s_grc->getQty();
+  xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_GOOD_MSK);
+  VoiceMsgWaitStop(portMAX_DELAY);
+  back_to_menu(app);
+}
+
+static State* getMenu() {
+  return new RhythmScenario::MainMenu(
+    {
+        {select_learn_str, &select_learn},
+        {select_classify_str, &select_classify},
+        {select_clr_data_str, [](App *app) {
+          app->set_ctx(select_clr_data_str);
+          app->transition(new RhythmScenario::ClearDatasetDialog(&clear_dataset, &back_to_menu, 21));
+          }
+        },
+    },
+    {"Back", nullptr}, 2);
+}
+
+static State* getAskToSwitchMenu() {
+  return new RhythmScenario::AskToSwitch(
+    {
+        {select_learn_str, &select_learn},
+        {select_classify_str, &select_classify},
+    },
+    {select_learn_str, &select_learn});
+}
+
+extern const int knock_len;
+extern const uint8_t knock_bytes[];
+
+void Common::initRhythmScenario(App *app) {
+  app->p_display->print_header("%s", app->get_ctx());
+  app->p_display->send();
+  s_grc = new RhythmGrc;
+  int res = s_grc->init(RhythmGrc::hp, knock_bytes, knock_len);
+  if (res < 0) {
+    LOGE(TAG, "Rhythm init error");
+    xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_BAD_MSK);
+    app->transition(Common::getMainMenu());
+  } else {
+    grc_helper_load_wgts(s_grc, app->p_storage.get());
+    s_cats_qty = s_grc->getQty();
+    app->set_ctx(s_grc->getName());
+    app->transition(getMenu());
   }
 }

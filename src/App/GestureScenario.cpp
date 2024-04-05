@@ -1,424 +1,459 @@
 #include "App.hpp"
 #include "GestureGrc.hpp"
 
-constexpr char TAG[] = "GestureScenario";
+#include "kws_preprocessor.h"
 
-namespace GestureScenario {
-struct States {
-  static State &select_learn;
-  static State &select_classify;
-  static State &select_clear_dataset;
+static constexpr char TAG[] = "GestureScenario";
 
-  static State &menu;
-  static State &back_to_menu;
-  static State &back_to_learn;
-  static State &back_to_classify;
-
-  static State &learn;
-  static State &learn_listen;
-  static State &learn_try_again;
-  static State &try_memory_write;
-  static State &save_dialog;
-  static State &overwrite_sample;
-  static State &overwrite_sample_dialog;
-  static State &select_sample;
-  static State &overwrite_dialog;
-  static State &ask_to_switch;
-
-  static State &classify;
-  static State &classify_listen;
-  static State &classify_try_again;
-  static State &process_category;
-  static State &process_no_match;
-  static State &print_category;
-
-  static State &clear_dataset_dialog;
-  static State &clear_dataset;
-};
+static constexpr const char *select_learn_str = "Learn";
+static constexpr const char *select_classify_str = "Classify";
+static constexpr const char *select_clr_data_str = "Clr data";
 
 static int s_category = -1;
 static int s_cats_qty = -1;
-static SignalData_t s_data;
+static BaseGrc *s_grc = nullptr;
 
-struct Listen : Common::Listen {
-  using Common::Listen::Listen;
-  void updateDisplay(App *app) override final {
-    app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
-                                 MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("Press and hold");
-    app->p_display->print_string("User to go");
-    app->p_display->send();
-  }
-  void enterAction(App *app) override final {
-    s_data.buffer = new float[s_data.num_rows * s_data.num_cols];
-    Common::Listen::enterAction(app);
-  }
-  void handleEvent(App *app, eEvent ev) override final {
-    switch (ev) {
-    case eEvent::CMD_GO:
-    case eEvent::BUTTON_TO_DOWN: {
-      xQueueSend(ListenerQueues.xRxQueue, &s_data, portMAX_DELAY);
-      app->transition(forward_state_);
-    } break;
-    case eEvent::CMD_UP:
-      if (back_state_ != nullptr) {
-        if (s_data.buffer != nullptr) {
-          delete[] s_data.buffer;
-        }
-        app->transition(back_state_);
-      } else {
-        updateDisplay(app);
-      }
-      break;
-    default:
-      updateDisplay(app);
-      break;
-    }
-  }
-};
+static State* getMenu();
+static State* getAskToSwitchMenu();
+static void select_learn(App *app);
+static void select_classify(App *app);
+static void try_memory_write(App *app);
+static void try_again_msg(App *app);
 
-struct TryAgain : State {
-  TryAgain(State *back_state) : back_state_(back_state) {}
-  void enterAction(App *app) override final {
-    xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_BAD_MSK);
-    app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
-                                 MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("Too short.");
-    app->p_display->print_string("Try again.");
-    app->p_display->send();
-  }
-  void update(App *app) override final {
-    if (app->check_timeout(1000)) {
-      app->transition(back_state_);
-    }
-  }
-
-private:
-  State *back_state_;
-};
-
-struct Learn : State {
-  void enterAction(App *app) override final {
-    app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("Learning is on...");
-    app->p_display->send();
-  }
-  void handleEvent(App *app, eEvent ev) override final {
-    switch (ev) {
-    case eEvent::BUTTON_TO_UP:
-      xEventGroupSetBits(xListenerEventGroup, LISTENER_STOP_MSK);
-      break;
-    default:
-      break;
-    }
-  }
-  void update(App *app) override final {
-    SignalData_t data;
-    if (xQueueReceive(ListenerQueues.xTxQueue, &data, 0) == pdPASS) {
-      LOGD(TAG, "Done: num_cols=%d", data.num_cols);
-      if (data.buffer && data.num_cols * data.sync_time_ms < 500) {
-        delete[] data.buffer;
-        app->transition(&States::learn_try_again);
-      } else {
-        GrcEvent_t load_ev{eGrcEventId::LOAD_SIGNAL, new SignalData_t(data)};
-        xQueueSend(GrcControllerQueues.xRxQueue, &load_ev, portMAX_DELAY);
-        GrcEvent_t train_ev{eGrcEventId::TRAIN,
-                            new int(s_cats_qty < MAX_TRAINABLE_CATEGORIES
-                                        ? s_cats_qty
-                                        : s_cats_qty - 1)};
-        xQueueSend(GrcControllerQueues.xRxQueue, &train_ev, portMAX_DELAY);
-        app->transition(&States::save_dialog);
-      }
-    }
-  }
-};
-
-struct SaveDialog : Common::ConfirmDialog {
-  using Common::ConfirmDialog::ConfirmDialog;
-  void drawMenu(App *app) const override final {
-    app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
-                                 MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("Save gesture?");
-    drawMenuItems(app);
-    app->p_display->send();
-  }
-};
-
-struct TryMemoryWrite : State {
-  void update(App *app) override final {
-    if (s_cats_qty + 1 > MAX_TRAINABLE_CATEGORIES) {
-      app->transition(&States::overwrite_dialog);
-    } else {
-      GrcEvent_t save_ev{eGrcEventId::SAVE_WGTS, app->p_storage.get()};
-      xQueueSend(GrcControllerQueues.xRxQueue, &save_ev, portMAX_DELAY);
-      s_cats_qty++;
-      app->transition(&GestureScenario::States::ask_to_switch);
-    }
-  }
-};
-
-struct OverwriteDialog : Common::ConfirmDialog {
-  using Common::ConfirmDialog::ConfirmDialog;
-  void enterAction(App *app) override final {
-    Common::ConfirmDialog::enterAction(app);
-    xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_BAD_MSK);
-  }
-  void drawMenu(App *app) const override final {
-    app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("Memory is full.");
-    app->p_display->print_string("Overwrite last?");
-    drawMenuItems(app);
-    app->p_display->send();
-  }
-};
-
-struct OverwriteSample : State {
-  void update(App *app) override final {
-    GrcEvent_t save_ev{eGrcEventId::SAVE_WGTS, app->p_storage.get()};
-    xQueueSend(GrcControllerQueues.xRxQueue, &save_ev, portMAX_DELAY);
-    app->transition(&GestureScenario::States::ask_to_switch);
-  }
-};
-
-struct Classify : State {
-  void enterAction(App *app) override final {
-    app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("Classification");
-    app->p_display->print_string("is on...");
-    app->p_display->send();
-  }
-  void handleEvent(App *app, eEvent ev) override final {
-    switch (ev) {
-    case eEvent::BUTTON_TO_UP:
-      xEventGroupSetBits(xListenerEventGroup, LISTENER_STOP_MSK);
-      break;
-    default:
-      break;
-    }
-  }
-  void update(App *app) override final {
-    SignalData_t data;
-    if (xQueueReceive(ListenerQueues.xTxQueue, &data, 0) == pdPASS) {
-      LOGD(TAG, "Done: num_cols=%d", data.num_cols);
-      if (data.buffer && data.num_cols * data.sync_time_ms < 500) {
-        delete[] data.buffer;
-        app->transition(&States::classify_try_again);
-      } else {
-        GrcEvent_t load_ev{eGrcEventId::LOAD_SIGNAL, new SignalData_t(data)};
-        xQueueSend(GrcControllerQueues.xRxQueue, &load_ev, portMAX_DELAY);
-        GrcEvent_t infer_ev{eGrcEventId::INFER, nullptr};
-        xQueueSend(GrcControllerQueues.xRxQueue, &infer_ev, portMAX_DELAY);
-        app->transition(&States::process_category);
-      }
-    }
-  }
-};
-
-struct ProcessCategory : State {
-  void update(App *app) override final {
-    s_category = Common::process_grc_replies(eGrcReplyId::CATEGORY);
-    if (s_category < 0) {
-      app->transition(&GestureScenario::States::process_no_match);
-    } else {
-      app->transition(&GestureScenario::States::print_category);
-    }
-  }
-};
-
-struct SelectLearn : State {
-  static constexpr const char *name = "Learn";
-
-  void exitAction(App *app) override final { app->set_ctx(name); }
-  void update(App *app) override final {
-    app->transition(&States::learn_listen);
-  }
-};
-
-struct SelectClassify : State {
-  static constexpr const char *name = "Classify";
-
-  void exitAction(App *app) override final { app->set_ctx(name); }
-  void update(App *app) override final {
-    app->transition(&States::classify_listen);
-  }
-};
-
-struct SelectClearDataset : State {
-  static constexpr const char *name = "Clr data";
-
-  void exitAction(App *app) override final { app->set_ctx(name); }
-  void update(App *app) override final {
-    app->transition(&States::clear_dataset_dialog);
-  }
-};
-
-struct MainMenu : Common::Menu {
-  using Common::Menu::Menu;
-  void drawMenu(App *app) const override final {
-    app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
-                                 MAX_TRAINABLE_CATEGORIES);
-    drawMenuItems(app);
-    app->p_display->send();
-  }
-  void enterAction(App *app) override final {
-    if (s_cats_qty == -1) {
-      app->p_display->print_header("%s", app->get_ctx());
-      app->p_display->send();
-      s_cats_qty = Common::process_grc_replies(eGrcReplyId::CATS_QTY);
-    }
-    Common::Menu::enterAction(app);
-  }
-};
-
-struct ClearDatasetDialog : Common::ConfirmDialog {
-  using Common::ConfirmDialog::ConfirmDialog;
-  void drawMenu(App *app) const override final {
-    app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
-                                 MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("Are you sure?");
-    drawMenuItems(app);
-    app->p_display->send();
-  }
-};
-
-struct ClearDataset : State {
-  void enterAction(App *app) override final {
-    app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
-                                 MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("The dataset");
-    app->p_display->print_string("is deleted");
-    app->p_display->send();
-    GrcEvent_t grc_ev{eGrcEventId::CLEAR_WGTS, app->p_storage.get()};
-    xQueueSend(GrcControllerQueues.xRxQueue, &grc_ev, portMAX_DELAY);
-    xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_GOOD_MSK);
-  }
-  void exitAction(App *app) override final {
-    xEventGroupClearBits(xStatusEventGroup, STATUS_EVENT_GOOD_MSK);
-    s_cats_qty = Common::process_grc_replies(eGrcReplyId::CATS_QTY);
-  }
-  void update(App *app) override final {
-    if (app->check_timeout(1000)) {
-      app->transition(&States::back_to_menu);
-    }
-  }
-};
-
-struct AskToSwitch : Common::Menu {
-  using Common::Menu::Menu;
-  void enterAction(App *app) override final {
-    Common::Menu::enterAction(app);
-    xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_GOOD_MSK);
-  }
-  void drawMenu(App *app) const override final {
-    app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("G%d is saved", s_cats_qty);
-    drawMenuItems(app);
-    app->p_display->send();
-  }
-};
-
-struct ProcessNoMatch : Common::Menu {
-  using Common::Menu::Menu;
-  void enterAction(App *app) override final {
-    Common::Menu::enterAction(app);
-    xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_BAD_MSK);
-  }
-  void drawMenu(App *app) const override final {
-    app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("No match");
-    drawMenuItems(app);
-    app->p_display->send();
-  }
-};
-
-struct PrintCategory : Common::Menu {
-  using Common::Menu::Menu;
-  void enterAction(App *app) override final {
-    Common::Menu::enterAction(app);
-    xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_GOOD_MSK);
-  }
-  void drawMenu(App *app) const override final {
-    app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
-    app->p_display->print_string("Gesture %d", s_category + 1);
-    drawMenuItems(app);
-    app->p_display->send();
-  }
-};
-
-State &States::select_learn = *new SelectLearn;
-State &States::select_classify = *new SelectClassify;
-State &States::select_clear_dataset = *new SelectClearDataset;
-State &States::menu = *new MainMenu(
-    {
-        {SelectLearn::name, &States::select_learn},
-        {SelectClassify::name, &States::select_classify},
-        {SelectClearDataset::name, &States::select_clear_dataset},
-    },
-    nullptr);
-State &States::back_to_menu = *new Common::BackTo(&States::menu);
-State &States::back_to_learn = *new Common::BackTo(&States::select_learn);
-State &States::back_to_classify = *new Common::BackTo(&States::select_classify);
-
-State &States::learn = *new Learn;
-State &States::learn_listen =
-    *new Listen(&States::learn, &States::back_to_menu);
-State &States::learn_try_again = *new TryAgain(&States::learn_listen);
-State &States::try_memory_write = *new TryMemoryWrite;
-State &States::save_dialog =
-    *new SaveDialog(&States::try_memory_write, &States::learn_listen);
-State &States::overwrite_sample = *new OverwriteSample;
-State &States::overwrite_dialog =
-    *new OverwriteDialog(&States::overwrite_sample, &States::learn_listen);
-State &States::ask_to_switch = *new AskToSwitch(
-    {
-        {SelectLearn::name, &States::back_to_learn},
-        {SelectClassify::name, &States::back_to_classify},
-    },
-    &States::back_to_learn);
-
-State &States::classify = *new Classify;
-State &States::classify_listen =
-    *new Listen(&States::classify, &States::back_to_menu);
-State &States::classify_try_again = *new TryAgain(&States::classify_listen);
-State &States::process_category = *new ProcessCategory;
-State &States::process_no_match = *new ProcessNoMatch(
-    {
-        {"Try again", &States::back_to_classify},
-        {"Go to Learn", &States::back_to_learn},
-    },
-    &States::back_to_classify);
-State &States::print_category = *new PrintCategory(
-    {
-        {"Try again", &States::back_to_classify},
-        {"Go to Learn", &States::back_to_learn},
-    },
-    &States::back_to_classify);
-
-State &States::clear_dataset = *new ClearDataset;
-State &States::clear_dataset_dialog =
-    *new ClearDatasetDialog(&States::clear_dataset, &States::back_to_menu);
-} // namespace GestureScenario
-
-void Common::InitGestureScenario::enterAction(App *app) {
-  app->p_display->print_header("%s", app->get_ctx());
+static void prep_state(App *app) {
+  app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
+                               MAX_TRAINABLE_CATEGORIES);
+  app->p_display->print_string("Prepare");
   app->p_display->send();
+  xEventGroupSetBits(xStatusEventGroup, STATUS_PREP_STATE_MSK);
+
+  const unsigned FRAG_LEN = 300;
+  const float MARG = 0.015F;
+  float *frag_buffer = new float[FRAG_LEN * SIGNAL_COMPS_NUM];
+  SignalData_t data = {frag_buffer, SIGNAL_COMPS_NUM, FRAG_LEN,
+                       SIGNAL_PERIOD_MS};
+  for (;;) {
+    xQueueSend(ListenerQueues.xRxQueue, &data, portMAX_DELAY);
+    if (xQueueReceive(ListenerQueues.xTxQueue, &data, portMAX_DELAY) ==
+        pdPASS) {
+      Matrix signal = convert(data, false, false);
+      Matrix avg_mat, std_mat;
+      signal.calcStat(avg_mat, StatMMAS<Matrix::ElmType>::Avg, false, true);
+      Matrix(signal, Matrix::Rect(3, 0), false)
+          .calcStat(std_mat, StatMMAS<Matrix::ElmType>::StDev, false, true);
+
+      Matrix mrg_mat;
+      std_mat.calcStat(mrg_mat, StatMMAS<Matrix::ElmType>::Max, false, false);
+
+      if ((float)mrg_mat[0] < MARG)
+        break;
+    }
+  }
+  delete[] frag_buffer;
+
+  xEventGroupClearBits(xStatusEventGroup, STATUS_PREP_STATE_MSK);
 }
 
-void Common::InitGestureScenario::update(App *app) {
-  p_grc = std::make_unique<GestureGrc>();
-  int res = p_grc->init(GestureGrc::hp);
-  if (res < 0) {
+namespace GestureScenario {
+  struct MainMenu : Common::Menu {
+    using Common::Menu::Menu;
+    State* clone() override final {
+      return new MainMenu(*this);
+    }
+    void drawMenu(App *app) const override final {
+      app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
+                                  MAX_TRAINABLE_CATEGORIES);
+      drawMenuItems(app);
+      app->p_display->send();
+    }
+  };
+
+  struct ProcessNoMatch : Common::Menu {
+    using Common::Menu::Menu;
+    State* clone() override final {
+      return new ProcessNoMatch(*this);
+    }
+    void enterAction(App *app) override final {
+      VoiceMsgPlay(19);
+      xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_BAD_MSK);
+      Common::Menu::enterAction(app);
+    }
+    void drawMenu(App *app) const override final {
+      app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
+      app->p_display->print_string("No match");
+      drawMenuItems(app);
+      app->p_display->send();
+    }
+  };
+
+  struct PrintCategory : Common::Menu {
+    using Common::Menu::Menu;
+    State* clone() override final {
+      return new PrintCategory(*this);
+    }
+    void enterAction(App *app) override final {
+      VoiceMsgPlay(14 + s_category);
+      VoiceMsgPlay(20);
+      xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_GOOD_MSK);
+      Common::Menu::enterAction(app);
+    }
+    void drawMenu(App *app) const override final {
+      app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
+      app->p_display->print_string("Gesture %d", s_category + 1);
+      drawMenuItems(app);
+      app->p_display->send();
+    }
+  };
+
+  struct ClearDatasetDialog : Common::ConfirmDialog {
+    using Common::ConfirmDialog::ConfirmDialog;
+    State* clone() override final {
+      return new ClearDatasetDialog(*this);
+    }
+    void drawMenu(App *app) const override final {
+      app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
+                                  MAX_TRAINABLE_CATEGORIES);
+      app->p_display->print_string("Are you sure?");
+      drawMenuItems(app);
+      app->p_display->send();
+    }
+  };
+
+  struct SaveDialog : Common::ConfirmDialog {
+    using Common::ConfirmDialog::ConfirmDialog;
+    State* clone() override final {
+      return new SaveDialog(*this);
+    }
+    void drawMenu(App *app) const override final {
+      app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
+                                  MAX_TRAINABLE_CATEGORIES);
+      app->p_display->print_string("Save gesture?");
+      drawMenuItems(app);
+      app->p_display->send();
+    }
+  };
+
+  struct OverwriteDialog : Common::ConfirmDialog {
+    using Common::ConfirmDialog::ConfirmDialog;
+    State* clone() override final {
+      return new OverwriteDialog(*this);
+    }
+    void drawMenu(App *app) const override final {
+      app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
+      app->p_display->print_string("Memory is full.");
+      app->p_display->print_string("Overwrite last?");
+      drawMenuItems(app);
+      app->p_display->send();
+    }
+  };
+
+  struct ReadyToListen : State {
+    ReadyToListen(action_t forward_action, action_t back_action, VoiceMsgId voice_msg)
+      : forward_action_(forward_action), back_action_(back_action), voice_msg_(voice_msg) {}
+    State* clone() override final {
+      return new ReadyToListen(*this);
+    }
+    void updateDisplay(App *app) {
+      app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
+                                  MAX_TRAINABLE_CATEGORIES);
+      app->p_display->print_string("Are you ready?");
+      app->p_display->send();
+    }
+    void enterAction(App *app) override final {
+      VoiceMsgPlay(voice_msg_);
+      updateDisplay(app);
+      kws_req_word(1);
+    }
+    void handleEvent(App *app, eEvent ev) override final {
+      switch (ev) {
+      case eEvent::CMD_YES: {
+        VoiceMsgPlay(4);
+        VoiceMsgWaitStop(portMAX_DELAY);
+        prep_state(app);
+        forward_action_(app);
+      } break;
+      case eEvent::BUTTON_TO_DOWN: {
+        VoiceMsgStop();
+        kws_req_cancel();
+        prep_state(app);
+        forward_action_(app);
+      } break;
+      case eEvent::CMD_UP:
+        if (back_action_ != nullptr) {
+          back_action_(app);
+        } else {
+          updateDisplay(app);
+        }
+        break;
+      case eEvent::CMD_UNKNOWN:
+      case eEvent::CMD_NO:
+      case eEvent::CMD_ONE:
+      case eEvent::CMD_TWO:
+      case eEvent::CMD_THREE:
+      case eEvent::CMD_FOUR:
+      case eEvent::CMD_SHEILA: {
+        updateDisplay(app);
+        if (uxQueueMessagesWaiting(xKWSRequestQueue) == 0) {
+          kws_req_word(1);
+        }
+      } break;
+      default:
+        break;
+      }
+    }
+
+  private:
+    action_t forward_action_;
+    action_t back_action_;
+    VoiceMsgId voice_msg_;
+  };
+   
+  struct Learn : State {
+    State* clone() override final {
+      return new Learn(*this);
+    }
+    void enterAction(App *app) override final {
+      app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
+      app->p_display->print_string("Learning...");
+      app->p_display->send();
+      SignalData_t data = {
+        .buffer = new float[SIGNAL_COMPS_NUM * SIGNAL_SAMPLES_NUM],
+        .num_rows = SIGNAL_COMPS_NUM,
+        .num_cols = SIGNAL_SAMPLES_NUM,
+        .sync_time_ms = SIGNAL_PERIOD_MS,
+      };
+      if (xQueueSend(ListenerQueues.xRxQueue, &data, 0) == pdFAIL) {
+        LOGE(TAG, "Error sending to data listener");
+      }
+    }
+    void handleEvent(App *app, eEvent ev) override final {
+      switch (ev) {
+      case eEvent::BUTTON_TO_UP:
+        xEventGroupSetBits(xListenerEventGroup, LISTENER_STOP_MSK);
+        break;
+      default:
+        break;
+      }
+    }
+    void update(App *app) override final {
+      SignalData_t data;
+      if (xQueueReceive(ListenerQueues.xTxQueue, &data, 0) == pdPASS) {
+        LOGD(TAG, "Done: num_cols=%d", data.num_cols);
+        Matrix signal = convert(data, false, true);
+        if (data.buffer && (data.num_cols * data.sync_time_ms < 500 ||
+                            getSignalBeg(signal, 20) < 0)) {
+          try_again_msg(app);
+          select_learn(app);
+          return;
+        }
+        int ret = grc_helper_train(s_grc, signal, s_cats_qty < MAX_TRAINABLE_CATEGORIES
+                                                  ? s_cats_qty
+                                                  : s_cats_qty - 1);
+        if (ret < 0) {
+          LOGE(TAG, "train error: %d", ret);
+          try_again_msg(app);
+          select_learn(app);
+          return;
+        }
+        app->transition(new GestureScenario::SaveDialog(&try_memory_write, &select_learn, 6));
+      }
+    }
+  };
+
+  struct Classify : State {
+    State* clone() override final {
+      return new Classify(*this);
+    }
+    void enterAction(App *app) override final {
+      app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
+      app->p_display->print_string("Classification");
+      app->p_display->print_string("is on...");
+      app->p_display->send();
+      SignalData_t data = {
+        .buffer = new float[SIGNAL_COMPS_NUM * SIGNAL_SAMPLES_NUM],
+        .num_rows = SIGNAL_COMPS_NUM,
+        .num_cols = SIGNAL_SAMPLES_NUM,
+        .sync_time_ms = SIGNAL_PERIOD_MS,
+      };
+      if (xQueueSend(ListenerQueues.xRxQueue, &data, 0) == pdFAIL) {
+        LOGE(TAG, "Error sending to data listener");
+      }
+    }
+    void handleEvent(App *app, eEvent ev) override final {
+      switch (ev) {
+      case eEvent::BUTTON_TO_UP:
+        xEventGroupSetBits(xListenerEventGroup, LISTENER_STOP_MSK);
+        break;
+      default:
+        break;
+      }
+    }
+    void update(App *app) override final {
+      SignalData_t data;
+      if (xQueueReceive(ListenerQueues.xTxQueue, &data, 0) == pdPASS) {
+        LOGD(TAG, "Done: num_cols=%d", data.num_cols);
+        Matrix signal = convert(data, false, true);
+        if (data.buffer && (data.num_cols * data.sync_time_ms < 500 ||
+                            getSignalBeg(signal, 20) < 0)) {
+          try_again_msg(app);
+          select_classify(app);
+          return;
+        }
+        s_category = grc_helper_infer(s_grc, signal);
+        if (s_category < 0) {
+          LOGI(TAG, "No match");
+          app->transition(new GestureScenario::ProcessNoMatch(
+            {
+                {"Try again", &select_classify},
+                {"Go to Learn", &select_learn},
+            },
+            {select_classify_str, &select_classify})
+          );
+        } else {
+          LOGI(TAG, "Gesture %d", s_category + 1);
+          app->transition(new GestureScenario::PrintCategory(
+            {
+                {"Try again", &select_classify},
+                {"Go to Learn", &select_learn},
+            },
+            {select_classify_str, &select_classify})
+          );
+        }
+      }
+    }
+  };
+
+  struct AskToSwitch : Common::Menu {
+    using Common::Menu::Menu;
+    State* clone() override final {
+      return new AskToSwitch(*this);
+    }
+    void enterAction(App *app) override final {
+      VoiceMsgPlay(8 + s_cats_qty - 1);
+      VoiceMsgPlay(7);
+      xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_GOOD_MSK);
+      Common::Menu::enterAction(app);
+    }
+    void drawMenu(App *app) const override final {
+      app->p_display->print_header("%d/%d", s_cats_qty, MAX_TRAINABLE_CATEGORIES);
+      app->p_display->print_string("G%d is saved", s_cats_qty);
+      drawMenuItems(app);
+      app->p_display->send();
+    }
+  };
+} // namespace GestureScenario
+
+static void try_again_msg(App *app) {
+  VoiceMsgPlay(23);
+  xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_BAD_MSK);
+  app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
+                                MAX_TRAINABLE_CATEGORIES);
+  app->p_display->print_string("Bad signal.");
+  app->p_display->print_string("Try again.");
+  app->p_display->send();
+  VoiceMsgWaitStop(portMAX_DELAY);
+}
+
+static void select_learn(App *app) {
+  app->pop_ctx();
+  app->set_ctx(select_learn_str);
+  app->transition(new GestureScenario::ReadyToListen(
+    [] (App *app) {
+      app->transition(new GestureScenario::Learn);
+    },
+    [] (App *app) {
+      app->transition(getMenu());
+    }, 3)
+    );
+}
+
+static void select_classify(App *app) {
+  app->pop_ctx();
+  app->set_ctx(select_classify_str);
+  app->transition(new GestureScenario::ReadyToListen(
+    [] (App *app) {
+      app->transition(new GestureScenario::Classify);
+    },
+    [] (App *app) {
+      app->transition(getMenu());
+    }, 3)
+    );
+}
+
+static void save_samples(App *app) {
+  grc_helper_save_wgts(s_grc, app->p_storage.get());
+  app->transition(getAskToSwitchMenu());
+}
+
+static void try_memory_write(App *app) {
+  if (s_cats_qty + 1 > MAX_TRAINABLE_CATEGORIES) {
     xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_BAD_MSK);
-    app->transition(&Common::States::select_scenario_menu);
+    app->transition(new GestureScenario::OverwriteDialog(&save_samples, &select_learn, 13));
   } else {
-    assert(::GestureGrc::hp.InputComponents == SIGNAL_COMPS_NUM);
-    GestureScenario::s_data.num_rows = SIGNAL_COMPS_NUM;
-    GestureScenario::s_data.num_cols = SIGNAL_SAMPLES_NUM;
-    GestureScenario::s_data.sync_time_ms = SIGNAL_PERIOD_MS;
-    initGrcController(p_grc.get());
-    GrcEvent_t grc_ev{eGrcEventId::LOAD_WGTS, app->p_storage.get()};
-    xQueueSend(GrcControllerQueues.xRxQueue, &grc_ev, portMAX_DELAY);
-    app->set_ctx(p_grc->getName());
-    app->transition(&GestureScenario::States::menu);
+    s_cats_qty++;
+    save_samples(app);
+  }
+}
+
+static void back_to_menu(App *app) {
+  xEventGroupClearBits(xStatusEventGroup, STATUS_SYSTEM_BUSY_MSK);
+  app->pop_ctx();
+  app->transition(getMenu());
+}
+
+static void clear_dataset(App *app) {
+  app->p_display->print_header("%s %d/%d", app->get_ctx(), s_cats_qty,
+                                MAX_TRAINABLE_CATEGORIES);
+  app->p_display->print_string("The dataset");
+  app->p_display->print_string("is deleted");
+  app->p_display->send();
+  VoiceMsgPlay(22);
+  grc_helper_clear_wgts(s_grc, app->p_storage.get());
+  s_cats_qty = s_grc->getQty();
+  xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_GOOD_MSK);
+  VoiceMsgWaitStop(portMAX_DELAY);
+  back_to_menu(app);
+}
+
+static State* getMenu() {
+  return new GestureScenario::MainMenu(
+    {
+        {select_learn_str, &select_learn},
+        {select_classify_str, &select_classify},
+        {select_clr_data_str, [](App *app) {
+          app->set_ctx(select_clr_data_str);
+          app->transition(new GestureScenario::ClearDatasetDialog(&clear_dataset, &back_to_menu, 21));
+          }
+        },
+    },
+    {"Back", nullptr}, 2);
+}
+
+static State* getAskToSwitchMenu() {
+  return new GestureScenario::AskToSwitch(
+    {
+        {select_learn_str, &select_learn},
+        {select_classify_str, &select_classify},
+    },
+    {select_learn_str, &select_learn});
+}
+
+extern const int gesture_len;
+extern const uint8_t gesture_bytes[];
+
+void Common::initGestureScenario(App *app) {
+  app->p_display->print_header("%s", app->get_ctx());
+  app->p_display->send();
+  s_grc = new GestureGrc;
+  int res = s_grc->init(GestureGrc::hp, gesture_bytes, gesture_len);
+  if (res < 0) {
+    LOGE(TAG, "Gesture init error");
+    xEventGroupSetBits(xStatusEventGroup, STATUS_EVENT_BAD_MSK);
+    app->transition(Common::getMainMenu());
+  } else {
+    grc_helper_load_wgts(s_grc, app->p_storage.get());
+    s_cats_qty = s_grc->getQty();
+    app->set_ctx(s_grc->getName());
+    app->transition(getMenu());
   }
 }

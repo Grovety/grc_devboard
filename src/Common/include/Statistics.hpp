@@ -72,31 +72,3 @@ public:
     return 0;
   }
 };
-
-/*!
- * \brief Signal statistics.
- */
-struct SignalStat {
-  MatrixDyn Mean;
-  MatrixDyn StDev;
-  /*!
-   * \brief Calculate statistics.
-   * \param signal Input signal.
-   * \param sep_inacc Separate inaccuracies.
-   */
-  void calcSignal(const MatrixDyn &signal, bool sep_inacc);
-};
-/*!
- * \brief Infer signal statistics.
- */
-struct InferStat : SignalStat {
-  union {
-    unsigned fail;
-    struct {
-      unsigned mean_fail : 1;
-      unsigned stdev_fail : 1;
-    };
-  };
-
-  InferStat() { fail = 0; }
-};

@@ -3,60 +3,24 @@
 #include "Event.hpp"
 #include "Status.hpp"
 
-#include "kws.h"
-#include "mfcc_preprocessor.h"
-#include "mic_fragment_reader.h"
-
-#define MIC_NOISY_ENV_THRESHOLD 350
-#define MIC_BAD_ENV_THRESHOLD 700
-
-static MicFragmentReader s_mic;
-static MfccPreprocessor s_pp;
+#include "kws_preprocessor.h"
+#include "mic_reader.h"
 
 static const char *TAG = "KWS";
 
+extern const unsigned char *kws_cmd_model_ptr;
+extern const char *kws_cmd_labels[];
+extern unsigned int kws_cmd_labels_num;
+
 static void kws_event_task(void *pvParameters) {
-  LOGD(TAG, "Init MIC listener...");
-  int errors = 0;
-  s_mic.Setup();
-  if (errors += s_mic.Errors() + s_pp.Errors()) {
-    LOGE(TAG, "start errors. stop");
-    vTaskDelete(NULL);
-  }
-  xEventGroupSetBits(xStatusEventGroup, STATUS_MIC_INIT_MSK);
-
   char result[32];
-  float *buffer = NULL;
   for (;;) {
-    size_t len = 0;
-    xEventGroupWaitBits(xStatusEventGroup,
-                        STATUS_CMD_WAIT_MSK | STATUS_SYSTEM_SUSPENDED_MSK,
-                        pdFALSE, pdFALSE, portMAX_DELAY);
-    xEventGroupWaitBits(xStatusEventGroup, STATUS_PRIORITY_SEMA_MSK, pdTRUE,
-                        pdFALSE, portMAX_DELAY);
-    if (!s_mic.Collect(nullptr, nullptr, 0)) {
-      const auto env = s_mic.GetEnvironment();
-      if (env > MIC_BAD_ENV_THRESHOLD) {
-        xEventGroupSetBits(xStatusEventGroup, STATUS_MIC_BAD_ENV_MSK);
-      } else if (env > MIC_NOISY_ENV_THRESHOLD) {
-        xEventGroupClearBits(xStatusEventGroup, STATUS_MIC_BAD_ENV_MSK);
-        xEventGroupSetBits(xStatusEventGroup, STATUS_MIC_NOISY_ENV_MSK);
-      } else {
-        xEventGroupClearBits(xStatusEventGroup, STATUS_MIC_ENV_BITS_MSK);
-      }
-    } else {
-      len += s_mic.Collect(&s_pp, (void **)(&buffer), 1);
-    }
-
-    if (len > 0 && len < 1300) {
-      xEventGroupClearBits(xStatusEventGroup, STATUS_MIC_ENV_BITS_MSK);
-      xEventGroupSetBits(xStatusEventGroup, STATUS_KWS_BUSY_MSK);
-      recognize_word(buffer, len, result);
-      xEventGroupClearBits(xStatusEventGroup, STATUS_KWS_BUSY_MSK);
-      LOGI(TAG, "result=%s", result);
-
-      if (strcmp(result, "_silence_") != 0 &&
-          strcmp(result, "_unknown_") != 0) {
+    size_t req_words = 0;
+    xQueuePeek(xKWSRequestQueue, &req_words, portMAX_DELAY);
+    if (xSemaphoreTake(xKWSSema, pdMS_TO_TICKS(50))) {
+      int category;
+      if (xQueueReceive(xKWSResultQueue, &category, pdMS_TO_TICKS(50)) == pdPASS) {
+        kws_get_category(category, result, sizeof(result));
         if (strcmp(result, "yes") == 0) {
           sendEvent(eEvent::CMD_YES);
         } else if (strcmp(result, "no") == 0) {
@@ -67,34 +31,44 @@ static void kws_event_task(void *pvParameters) {
           sendEvent(eEvent::CMD_TWO);
         } else if (strcmp(result, "three") == 0) {
           sendEvent(eEvent::CMD_THREE);
-        } else if (strcmp(result, "go") == 0) {
-          sendEvent(eEvent::CMD_GO);
+        } else if (strcmp(result, "four") == 0) {
+          sendEvent(eEvent::CMD_FOUR);
         } else if (strcmp(result, "up") == 0) {
           sendEvent(eEvent::CMD_UP);
         } else if (strcmp(result, "sheila") == 0) {
           sendEvent(eEvent::CMD_SHEILA);
         } else {
           sendEvent(eEvent::CMD_UNKNOWN);
+          kws_req_word(1);
         }
-        s_mic.EnvironmentArrayRightshift();
-      } else {
-        sendEvent(eEvent::CMD_UNKNOWN);
       }
-
-      delete[] buffer;
-      buffer = NULL;
+      xSemaphoreGive(xKWSSema);
+    } else {
+      vTaskDelay(pdMS_TO_TICKS(50));
     }
-    xEventGroupSetBits(xStatusEventGroup, STATUS_PRIORITY_SEMA_MSK);
   }
 }
 
-void initKWS() {
-  TaskHandle_t xHandle = NULL;
+bool initKWS() {
+  int errors = !kws_model_init_op_resolver();
+  errors += !kws_model_init(kws_cmd_model_ptr, kws_cmd_labels, kws_cmd_labels_num);
+  if (errors) {
+    return false;
+  }
+  kws_preprocessor_init();
+  errors = !mic_reader_init();
+  if (errors) {
+    return false;
+  }
+
   auto xReturned =
       xTaskCreate(kws_event_task, "kws_event_task",
-                  configMINIMAL_STACK_SIZE + 1024 * 4, NULL, 1, NULL);
+                  configMINIMAL_STACK_SIZE + 1024 * 4, NULL, tskIDLE_PRIORITY, NULL);
   if (xReturned != pdPASS) {
     LOGE(TAG, "Error creating KWS event task");
-    vTaskDelete(xHandle);
+    return false;
   }
+
+  xEventGroupSetBits(xStatusEventGroup, STATUS_MIC_INIT_MSK);
+  return true;
 }

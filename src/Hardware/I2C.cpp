@@ -39,7 +39,7 @@ bool I2C::open() {
       i2c_driver_install(i2c_master_port, conf.mode, I2C_MASTER_RX_BUF_DISABLE,
                          I2C_MASTER_TX_BUF_DISABLE, 0);
   ESP_ERROR_CHECK(res);
-  ESP_LOGI(TAG, "I2C initialized successfully");
+  ESP_LOGD(TAG, "I2C initialized successfully");
 
   isOpened_ = true;
   return res == ESP_OK;
@@ -51,7 +51,7 @@ bool I2C::close() {
 
   esp_err_t res = i2c_driver_delete(I2C_MASTER_NUM);
   ESP_ERROR_CHECK(res);
-  ESP_LOGI(TAG, "I2C de-initialized successfully");
+  ESP_LOGD(TAG, "I2C de-initialized successfully");
 
   isOpened_ = false;
   return res == ESP_OK;

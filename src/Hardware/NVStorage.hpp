@@ -16,7 +16,7 @@ public:
    * \param data Train metadata.
    */
   void read(const char *storage_namespace, unsigned &qty,
-            std::vector<RT> &data) const override final;
+            std::vector<float> &data) const override final;
   /*!
    * \brief Write train metadata to storage.
    * \param storage_namespace Storage namespace.
@@ -24,7 +24,7 @@ public:
    * \param data Train metadata.
    */
   void write(const char *storage_namespace, unsigned qty,
-             const std::vector<RT> &data) const override final;
+             const std::vector<float> &data) const override final;
   /*!
    * \brief Clear storage.
    * \param storage_namespace Storage namespace.
@@ -40,7 +40,7 @@ private:
    * \return Error value.
    */
   esp_err_t readNVS(const char *storage_namespace, unsigned &qty,
-                    std::vector<RT> &data) const;
+                    std::vector<float> &data) const;
   /*!
    * \brief Write train metadata to NVS.
    * \param storage_namespace NVS namespace.
@@ -49,5 +49,5 @@ private:
    * \return Error value.
    */
   esp_err_t writeNVS(const char *storage_namespace, unsigned qty,
-                     const std::vector<RT> &data) const;
+                     const std::vector<float> &data) const;
 };

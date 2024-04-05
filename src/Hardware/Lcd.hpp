@@ -5,7 +5,7 @@
 class Lcd : public IDisplay {
 public:
   enum class Font : unsigned {
-    COURB14,
+    COURR10,
     COURR14,
     F8X13B,
     F9X15,

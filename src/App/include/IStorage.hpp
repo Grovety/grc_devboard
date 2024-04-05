@@ -1,5 +1,4 @@
 #pragma once
-#include "Types.hpp"
 #include <vector>
 
 /*!
@@ -14,7 +13,7 @@ public:
    * \param data Train metadata.
    */
   virtual void read(const char *storage_namespace, unsigned &qty,
-                    std::vector<RT> &data) const = 0;
+                    std::vector<float> &data) const = 0;
   /*!
    * \brief Write train metadata to storage.
    * \param storage_namespace Storage namespace.
@@ -22,7 +21,7 @@ public:
    * \param data Train metadata.
    */
   virtual void write(const char *storage_namespace, unsigned qty,
-                     const std::vector<RT> &data) const = 0;
+                     const std::vector<float> &data) const = 0;
   /*!
    * \brief Clear storage.
    * \param storage_namespace Storage namespace.

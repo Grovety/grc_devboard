@@ -59,7 +59,7 @@ static void colorWipe(RGB c, uint32_t wait) {
     ESP_ERROR_CHECK(led_strip_set_pixel(s_led_strip, i, c.r, c.g, c.b));
     /* Refresh the strip to send data */
     ESP_ERROR_CHECK(led_strip_refresh(s_led_strip));
-    delayMS(wait);
+    vTaskDelay(pdMS_TO_TICKS(wait));
   }
 }
 
@@ -90,9 +90,9 @@ void Led::flash(ILed::Colour colour, unsigned nums) {
   set(false);
   while (nums--) {
     set(colour);
-    delayMS(dur / 2);
+    vTaskDelay(pdMS_TO_TICKS(dur / 2));
     set(false);
     if (nums)
-      delayMS(dur);
+      vTaskDelay(pdMS_TO_TICKS(dur));
   }
 }

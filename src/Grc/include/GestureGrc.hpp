@@ -1,7 +1,7 @@
 #pragma once
 #include "BaseGrc.hpp"
 
-#define SIGNAL_SAMPLES_NUM 1500
+#define SIGNAL_SAMPLES_NUM 2000
 #define SIGNAL_COMPS_NUM 6
 #define SIGNAL_PERIOD_MS 2
 #define MAX_TRAINABLE_CATEGORIES 5
@@ -17,17 +17,10 @@ public:
   static constexpr HP hp = {
     .PredictSignal = false,
     .SeparateInaccuracies = false,
-    .InputComponents = 6,
-    .OutputComponents = 6,
-    .Neurons = 17,
-    .SpectralRadius = 0.372852,
-    .Sparsity = 0.459827,
-    .Noise = 0.00022583,
-    .InputScaling = 0.36936,
-    .InputSparsity = 0.498682,
-    .FeedbackScaling = 0.000177185,
-    .FeedbackSparsity = 0.727765,
-    .ThresholdFactor = 1.05014
+    .Noise = 0.00143976,
+    .InputScaling = 0.524927,
+    .FeedbackScaling = 0.000898804,
+    .ThresholdFactor = 1.05627
   };
   /*! \brief Constructor. */
   GestureGrc() : BaseGrc("Gesture") {}
@@ -37,11 +30,23 @@ public:
    * \param category Overwrite specific category in Grc.
    * \return Trained category.
    */
-  int train(const MatrixDyn &signal, int category = -1) override final;
+  int train(Matrix &signal, int category = -1) override final;
   /*!
    * \brief Inference on signal.
    * \param signal The input signal that will be sent to Grc.
    * \return Inferenced category.
    */
-  int inference(const MatrixDyn &signal) override final;
+  int inference(Matrix &signal) override final;
+  /*!
+    * \brief Gesture app specific preprocessing.
+    * \param signal Input signal.
+    */
+  void preprocess(Matrix &signal) const;
 };
+/*!
+  * \brief Determine the beginning of the signal.
+  * \param src Input signal.
+  * \param percent Threshold.
+  * \return Index (-1 if not found).
+  */
+int getSignalBeg(const Matrix &src, unsigned percent);

@@ -17,33 +17,48 @@ public:
   static constexpr HP hp = {
     .PredictSignal = true,
     .SeparateInaccuracies = false,
-    .InputComponents = 1,
-    .OutputComponents = 1,
-    .Neurons = 18,
-    .SpectralRadius = 0.444104,
-    .Sparsity = 0.631049,
     .Noise = 0.00100195,
     .InputScaling = 0.566296,
-    .InputSparsity = 0.4302,
     .FeedbackScaling = 0.00168945,
-    .FeedbackSparsity = 0.417676,
     .ThresholdFactor = 0.86792
   };
   /*! \brief Constructor. */
   RhythmGrc() : BaseGrc("Rhythm") {}
+  /*!
+   * \brief Clear Grc state.
+   * \return Error code.
+   */
+  int clear() override final;
   /*!
    * \brief Train Grc on signal.
    * \param signal The input signal that will be sent to Grc.
    * \param category Overwrite specific category in Grc.
    * \return Trained category.
    */
-  int train(const MatrixDyn &signal, int category = -1) override final;
+  int train(Matrix &signal, int category = -1) override final;
   /*!
    * \brief Inference on signal.
    * \param signal The input signal that will be sent to Grc.
    * \return Inferenced category.
    */
-  int inference(const MatrixDyn &signal) override final;
+  int inference(Matrix &signal) override final;
+  /*!
+   * \brief Save train metadata to buffer.
+   * \param data Buffer.
+   * \return Number of saved categories.
+   */
+  unsigned save(std::vector<float> &data) override final;
+  /*!
+   * \brief Load train metadata to Grc and extract train stat info.
+   * \param qty Number of categories.
+   * \param data Buffer.
+   * \return Whether the data was loaded successfully to Grc.
+   */
+  bool load(unsigned qty, const std::vector<float> &data) override final;
+
+private:
+  /*! \brief Number of peaks for each category. */
+  std::vector<size_t> peaks_num_;
 };
 /*!
   * \brief Rhythm app specific preprocessing.
@@ -51,4 +66,4 @@ public:
   * \param signal_period_ms Sensor polling frequency.
   * \return Result.
   */
-bool preprocessRhythm(MatrixDyn &signal, unsigned signal_period_ms);
+bool preprocessRhythm(Matrix &signal, float signal_period_ms);

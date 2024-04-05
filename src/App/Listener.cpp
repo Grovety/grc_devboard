@@ -1,8 +1,7 @@
 #include "Listener.hpp"
 #include "Common.hpp"
-#include "Types.hpp"
 
-constexpr char TAG[] = "Listener";
+static constexpr char TAG[] = "Listener";
 
 ListenerQueues_t ListenerQueues;
 

@@ -89,7 +89,7 @@ bool Accelerometer::open() {
   uint8_t data[2] = {0};
 
   bool ret = readRegister(MPU_WHO_AM_I_REG_ADDR, data, 1);
-  ESP_LOGI(TAG, "WHO_AM_I = %X", data[0]);
+  ESP_LOGD(TAG, "WHO_AM_I = %X", data[0]);
   if (!ret || !(data[0] == WHOAMI_MPU9250 || data[0] == WHOAMI_MPU6500)) {
     ESP_LOGE(TAG, "Failed to check WHO_AM_I");
     return false;
@@ -100,9 +100,9 @@ bool Accelerometer::open() {
       ESP_LOGE(TAG, "Failed to write init sequence");
       return false;
     }
-    delayMS(s_init_seq[i].delay_);
+    vTaskDelay(pdMS_TO_TICKS(s_init_seq[i].delay_));
   }
-  delayMS(100);
+  vTaskDelay(pdMS_TO_TICKS(100));
   return true;
 }
 
@@ -118,12 +118,12 @@ void Accelerometer::getData(float *buf, unsigned len) {
   switch (len) {
   case 6:
   default:
-    buf[Acl_x] = conv(&data_buf[0]);
-    buf[Acl_y] = conv(&data_buf[2]);
-    buf[Acl_z] = conv(&data_buf[4]);
-    buf[Vel_x] = conv(&data_buf[8]);
-    buf[Vel_y] = conv(&data_buf[10]);
-    buf[Vel_z] = conv(&data_buf[12]);
+    buf[Vel_x] = conv(&data_buf[0]);
+    buf[Vel_y] = conv(&data_buf[2]);
+    buf[Vel_z] = conv(&data_buf[4]);
+    buf[Acl_x] = conv(&data_buf[8]);
+    buf[Acl_y] = conv(&data_buf[10]);
+    buf[Acl_z] = conv(&data_buf[12]);
     break;
   case 3:
     buf[Acl_x] = conv(&data_buf[0]);

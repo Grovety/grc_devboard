@@ -1,5 +1,6 @@
 #pragma once
 /*!
  * \brief Initialize Key Word Selection system.
+ * \return Result.
  */
-void initKWS();
+bool initKWS();

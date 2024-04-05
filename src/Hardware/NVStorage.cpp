@@ -5,7 +5,7 @@
 #define GRCS_QTY_NAME "GRCs_qty"
 #define GRCS_DATA_NAME "GRCs_data"
 
-constexpr char TAG[] = "NVStorage";
+static constexpr char TAG[] = "NVStorage";
 
 NVStorage::NVStorage() {
   ESP_LOGD(TAG, "open NVS");
@@ -21,13 +21,23 @@ NVStorage::NVStorage() {
 }
 
 void NVStorage::read(const char *storage_namespace, unsigned &qty,
-                     std::vector<RT> &data) const {
-  ESP_ERROR_CHECK(readNVS(storage_namespace, qty, data));
+                     std::vector<float> &data) const {
+  const auto err = readNVS(storage_namespace, qty, data);
+  if (err != ESP_OK) {
+    qty = 0;
+    data.clear();
+    ESP_ERROR_CHECK(writeNVS(storage_namespace, 0, {}));
+    ESP_LOGE(TAG, "Got error: %s", esp_err_to_name(err));
+  }
 }
 
 void NVStorage::write(const char *storage_namespace, unsigned qty,
-                      const std::vector<RT> &data) const {
-  ESP_ERROR_CHECK(writeNVS(storage_namespace, qty, data));
+                      const std::vector<float> &data) const {
+  const auto err = writeNVS(storage_namespace, qty, data);
+  if (err != ESP_OK) {
+    ESP_ERROR_CHECK(writeNVS(storage_namespace, 0, {}));
+    ESP_ERROR_CHECK(err);
+  }
 }
 
 void NVStorage::clear(const char *storage_namespace) const {
@@ -35,7 +45,7 @@ void NVStorage::clear(const char *storage_namespace) const {
 }
 
 esp_err_t NVStorage::readNVS(const char *storage_namespace, unsigned &qty,
-                             std::vector<RT> &data) const {
+                             std::vector<float> &data) const {
   nvs_handle_t my_handle;
 
   esp_err_t err = nvs_open(storage_namespace, NVS_READWRITE, &my_handle);
@@ -49,9 +59,7 @@ esp_err_t NVStorage::readNVS(const char *storage_namespace, unsigned &qty,
       return err;
     if (grcs_qty < 0) {
       ESP_LOGW(TAG, "got invalid grcs_qty");
-      qty = 0;
-      ESP_ERROR_CHECK(writeNVS(storage_namespace, 0, {}));
-      return ESP_OK;
+      return ESP_FAIL;
     } else {
       qty = grcs_qty;
     }
@@ -63,7 +71,7 @@ esp_err_t NVStorage::readNVS(const char *storage_namespace, unsigned &qty,
     return err;
 
   if (required_size != 0) {
-    data.resize(required_size / sizeof(RT));
+    data.resize(required_size / sizeof(float));
     err = nvs_get_blob(my_handle, GRCS_DATA_NAME, data.data(), &required_size);
     if (err != ESP_OK)
       return err;
@@ -74,13 +82,13 @@ esp_err_t NVStorage::readNVS(const char *storage_namespace, unsigned &qty,
   }
 
   nvs_close(my_handle);
-  ESP_LOGI(TAG, "read NVS: %d", qty);
+  ESP_LOGD(TAG, "read NVS: %d", qty);
   return ESP_OK;
 }
 
 esp_err_t NVStorage::writeNVS(const char *storage_namespace, unsigned qty,
-                              const std::vector<RT> &data) const {
-  ESP_LOGI(TAG, "write NVS: %d", qty);
+                              const std::vector<float> &data) const {
+  ESP_LOGD(TAG, "write NVS: %d", qty);
   nvs_handle_t my_handle;
 
   esp_err_t err = nvs_open(storage_namespace, NVS_READWRITE, &my_handle);
@@ -88,7 +96,7 @@ esp_err_t NVStorage::writeNVS(const char *storage_namespace, unsigned qty,
     return err;
 
   err = nvs_set_blob(my_handle, GRCS_DATA_NAME, data.data(),
-                     data.size() * sizeof(RT));
+                     data.size() * sizeof(float));
   if (err != ESP_OK)
     return err;
   err = nvs_set_i32(my_handle, GRCS_QTY_NAME, qty);
