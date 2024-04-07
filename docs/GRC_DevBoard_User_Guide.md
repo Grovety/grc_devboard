@@ -38,7 +38,7 @@ A display is added by soldering two power and two I2C pins.
 
 ### Interaction
 
-<img src="media/DevBoard_Interaction.png" width=40%>
+<img src="media/DevBoard_Interaction.png" width=50%>
 
 #### Buttons
 
