@@ -56,7 +56,7 @@ A display is added by soldering two power and two I2C pins.
 <img src="media/Screen_menu.png" width=400px>
 <img src="media/Screen1.png" width=200px>
 <img src="media/Screen2.png" width=200px>
-<img src="media/Screen3.png" width=200px>
+<img src="media/Screen3..png" width=200px>
 
 <details>
 *<summary>IDF Monitor</summary>*
