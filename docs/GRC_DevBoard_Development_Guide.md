@@ -7,7 +7,7 @@ GRC Dev Board has:
 * 2 ultra-compact, low-power, omnidirectional, digital MEMS microphones
 * A multi-chip module MPU-9250 (9-axis sensor: a gyroscope, an accelerometer, and a compass)
 * 3 RGB LEDs
-* 2 buttons: Reset and User/Boot
+* 4 buttons: Reset, Back/Sleep and two User/Boot buttons
 * OLED Display (optional)
 
 <img src="media/DevBoard_Description.png">
