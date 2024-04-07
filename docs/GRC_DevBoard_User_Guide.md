@@ -4,7 +4,7 @@
 
 ### GRC Development Board
 
-<img src="media/Board.png" width=80%>
+<img src="media/Board.png" width=40%>
 
 ### 2 PIN Battery connector with cables
 
@@ -38,16 +38,18 @@ A display is added by soldering two power and two I2C pins.
 
 ### Interaction
 
-<img src="media/DevBoard_Interaction.png" width=50%>
+<img src="media/DevBoard_Interaction.png" width=40%>
 
 #### Buttons
 
 | Actions | Command  |
 |---------|----------|
 | Dev Board reset | **RESET** Press and hold > 2 sec |
-| Menu navigation | **USER** Press |
-| Start operation | **USER** Press |
-| Select menu items | **USER** Press and hold >2 sec |
+| Menu navigation | any **USER** Press |
+| Start operation | any **USER** Press |
+| Select menu items | any **USER** Press and hold >2 sec |
+| Go back| **BACK/SLEEP** Press |
+| Sleeping Mode | **BACK/SLEEP** Press and hold >2 sec 
 
 #### Screen menu
 
@@ -65,10 +67,9 @@ To get screen messages without a display, connect the Dev Board to your PC, run 
 
 | Action | Command |
 |--------|---------|
-| Start learning or classification | **GO** |
 | Confirm | **YES** |
 | Cancel  | **NO** |
-| Open menu item | **1-3** |
+| Open menu item | **1-4** |
 | Go up | **Up** |
 | Wake Up | **Sheila** |
 
@@ -85,8 +86,16 @@ To get screen messages without a display, connect the Dev Board to your PC, run 
 
 ### Clear dataset
 
+In VoicePIN, dataset is cleared after every rest. In other apps, do the following:
+
 1. Select “Clear dataset”.
 2. Confirm the operation.
+
+### Sleeping Mode 
+
+The DevBoard will automatically switch to the sleeping mode if inactivity period is more than 1 minute. Otherwise, press and hold **BACK/SLEEP**. 
+
+To wake-up the board, say **SHEILA** or press **USER**. 
 
 ## Quick Start
 
@@ -101,6 +110,50 @@ Practice actions which are easy to repeat, Up-Down, Left-Right.
 Once you get familiar with the board operating routine, you can go for more complicated patterns.
 
 ***Tip***: *to guarantee proper and successful recognition of gestures and rhythm patterns, reproduce them as accurately as possible.*
+
+### Vibro App
+
+Vibro app performs anomaly detection and classification of electric motor operating.
+
+***Tip:*** *Use a fan (air cooler).*
+
+#### Classification
+
+1. Put the Dev Board on the device.
+2. Run the anomaly detection.
+3. Save the anomaly as one of the patterns.
+
+### VoicePIN
+
+#### Learning 
+
+1. Say 4-digits code. 
+
+2. Confirm the combination. 
+
+#### Classification 
+
+1. Say 4-digits code. 
+
+2. Get result. 
+
+### Rhythm App
+
+The rhythm app learns a sequence of tapping sounds and recognizes the saved patterns.
+
+***Tip***: *to achieve better results, we recommend that you either tap a rhythm on the DevBoard’s surface or make sure the DevBoard is set firmly and will not move in the process (e.g. use double-sided tape or rubber fit)*
+
+#### Learning
+
+1. Run learning.
+2. Tap a rhythm (within 3 seconds)
+3. Save the pattern.
+
+#### Classification
+
+1. Run classification.
+2. Tap a rhythm.
+3. Get results.
 
 ### Gesture App
 
@@ -118,33 +171,3 @@ The gesture app learns gestures and recognizes the saved patterns.
 1. Run classification.
 2. Make a gesture.
 3. Get results.
-
-### Rhythm App
-
-The rhythm app learns a sequence of tapping sounds and recognizes the saved patterns.
-
-***Tip***: *we recommend that you tap a rhythm on the Dev board’s surface to achieve better results.*
-
-#### Learning
-
-1. Run learning.
-2. Tap a rhythm (within 3 seconds)
-3. Save the pattern.
-
-#### Classification
-
-1. Run classification.
-2. Tap a rhythm.
-3. Get results.
-
-### Vibro App
-
-Vibro app performs anomaly detection and classification of electric motor operating.
-
-***Tip:*** *Use a fan (air cooler).*
-
-#### Classification
-
-1. Put the Dev Board on the device.
-2. Run the anomaly detection.
-3. Save the anomaly as one of the patterns.
