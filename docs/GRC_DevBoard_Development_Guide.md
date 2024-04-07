@@ -55,13 +55,17 @@ GRC_AI_SW_DEMO (Dev Board is delivered with demo firmware pre-installed) aims to
 * Microphone
 * Speaker
 
-The demo offers three test scenarios, in which data are received from an accelerometer, pre-processed and sent for training/classification at GRC AI SW over I2C.
+The demo offers three four scenarios, in which data are received from an accelerometer or microphones, pre-processed, and sent for training/classification at the GRC AI Module over I2C.
 
-**GestureProject** – allows training in several hand gestures (i.e. types of Dev Board movement) for their further recognition and classification. For example, moving the Dev Board Left-Right or in a circle. Currently, the solution incorporates smoothing and dimensionality reduction (average out of 10 measurements) of data received from the accelerometer. It helps to remove slight deviations (e.g., trembling hands).
+
 
 **VibroProject** – allows recognizing different types of vibrations, for example, different fan work modes. The data received from an accelerometer are unfolded, normalized, and filtered. During the recognition process, the device shall be in the same position as it was during training, otherwise, correct results are not guaranteed.
 
 **RhythmProject** – recognize different tap rhythms. The data outliers are identified and the distances between them are calculated.
+
+**VoicePINProject** - learning and recognizing 4-digit PIN code said by user
+
+**GestureProject** – allows training in several hand gestures (i.e. types of Dev Board movement) for their further recognition and classification. For example, moving the Dev Board Left-Right or in a circle. Currently, the solution incorporates smoothing and dimensionality reduction (average out of 10 measurements) of data received from the accelerometer. It helps to remove slight deviations (e.g., trembling hands).
 
 ## Demo Project Structure
 
