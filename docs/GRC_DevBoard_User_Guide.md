@@ -1,4 +1,4 @@
-# GRC Dev Board User Guide
+# GRC DevBoard User Guide
 
 ## In the Box
 
@@ -44,7 +44,7 @@ A display is added by soldering two power and two I2C pins.
 
 | Actions | Command  |
 |---------|----------|
-| Dev Board reset | **RESET** Press and hold > 2 sec |
+| DevBoard reset | **RESET** Press and hold > 2 sec |
 | Menu navigation | any **USER** Press |
 | Start operation | any **USER** Press |
 | Select menu items | any **USER** Press and hold >2 sec |
@@ -61,7 +61,7 @@ A display is added by soldering two power and two I2C pins.
 <details>
 *<summary>IDF Monitor</summary>*
 
-To get screen messages without a display, connect the Dev Board to your PC, run IDF Monitor and open the port. The board screen messages will be transmitted to the console. IDF Monitor for ESP32 User guide - https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/tools/idf-monitor.html
+To get screen messages without a display, connect the DevBoard to your PC, run IDF Monitor and open the port. The board screen messages will be transmitted to the console. IDF Monitor for ESP32 User guide - https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/tools/idf-monitor.html
 </details>
 
 #### Voice commands
@@ -87,7 +87,7 @@ To get screen messages without a display, connect the Dev Board to your PC, run 
 
 ### Clear dataset
 
-In VoicePIN, dataset is cleared after every rest. In other apps, do the following:
+In VoicePIN, dataset is cleared after every reset. In other apps, do the following:
 
 1. Select “Clear dataset”.
 2. Confirm the operation.
@@ -114,13 +114,15 @@ Once you get familiar with the board operating routine, you can go for more comp
 
 ### Vibro App
 
-Vibro app performs anomaly detection and classification of electric motor operating.
+Vibro app performs anomaly detection and classification of an electric motor operating.
 
 ***Tip:*** *Use a fan (air cooler).*
 
+*To achieve better results, attach the DevBoard firmly to the device.*
+
 #### Classification
 
-1. Put the Dev Board on the device.
+1. Put the DevBoard on the device.
 2. Run the anomaly detection.
 3. Save the anomaly as one of the patterns.
 
