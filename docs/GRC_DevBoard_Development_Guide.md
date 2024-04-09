@@ -55,7 +55,7 @@ GRC_AI_SW_DEMO (Dev Board is delivered with demo firmware pre-installed) aims to
 * Microphone
 * Speaker
 
-The demo offers three four scenarios, in which data are received from an accelerometer or microphones, pre-processed, and sent for training/classification at the GRC AI Module over I2C.
+The demo offers four scenarios, in which data are received from an accelerometer or microphones, pre-processed, and sent for training/classification at the GRC AI Module over I2C.
 
 
 
