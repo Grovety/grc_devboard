@@ -28,7 +28,7 @@
 * Temperature sensors
 * Other sensors which control time series data flow
 
-## Perks of using GRCTM Dev Board:
+## Perks of using GRC Dev Board:
 * Saving time and resources at the development stage, as there is no need in
 	* Development of mathematical and statistical anomaly models;
 	* Signal mapping and dataset preparation;
@@ -73,8 +73,8 @@ Provides voice user interface based on neural network featuring
 Prepares data for the AI module and displays the results. Provides interacting with peripheral equipment and an AI module.
 * Sensors management and control;
 * Data pre-processing;
-* Data flow transfer onto the GRCTM AI Module;
-* GRCTM AI Module management and control;
+* Data flow transfer onto the GRC AI Module;
+* GRC AI Module management and control;
 * Data post-processing;
 * Results shown on OLED display, via LEDs, speaker, text to UART USB port;
 * Voice control (command words).
