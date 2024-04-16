@@ -6,8 +6,6 @@
 
 <img src="media/hand.png" width=50%>
 
-
-
 ### The GRC Dev Board allows
 
 * Promptly testing ready-made, pre-configured neural networks running on a “co-processor” (AI-Module);
@@ -17,18 +15,18 @@
 ### Where Can It Be Used? ​
 * Student training
 * Predictive maintenance
-Equipment condition monitoring
-Smart Home Systems
-Command word recognition
-Gesture recognition
+* Equipment condition monitoring
+* Smart Home Systems
+* Command word recognition
+* Gesture recognition
 
 ### Recommended sensors
-Vibrations sensors
-Microphones
-Current sensors
-Accelerometers
-Temperature sensors
-Other sensors which control time series data flow
+* Vibrations sensors
+* Microphones
+* Current sensors
+* Accelerometers
+* Temperature sensors
+* Other sensors which control time series data flow
 
 ## Perks of using GRCTM Dev Board:
 * Saving time and resources at the development stage, as there is no need in
