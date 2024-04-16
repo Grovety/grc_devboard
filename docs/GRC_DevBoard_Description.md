@@ -114,14 +114,22 @@ Prepares data for the AI module and displays the results. Provides interacting w
 
 ## Demo scenarios:​
 
+![image](https://github.com/Grovety/grc_devboard/assets/74958179/575a46b8-0751-46c2-8329-bda427d394b2)
+
 ### Detection of Fan Operating Modes and Anomalies in Its Work
 The Dev Board is placed on a fan’s case; it processes the data stream from the accelerometer in real time to store and further classify fan operating modes or non-standard conditions (anomalies).
+
+![image](https://github.com/Grovety/grc_devboard/assets/74958179/b8594168-e0d5-42a2-b818-92bcdb2039d5)
 
 ### Spatial Gesture Recognition​ 
 For use on mechanisms, which moves along a given trajectory, e.g., an industrial manipulator on a conveyer, a robotic arm. It is placed on a manipulator’s case, learns the “gestures” and then recognizes their types and notifies about deviations. 
 
+![image](https://github.com/Grovety/grc_devboard/assets/74958179/58823b9a-16d1-49a4-9a70-920b8fba663d)
+
 ### Voice PIN Code​ 
 The Dev Board remembers and recognizes a 4-digit code pronounced by a user.  
+
+![image](https://github.com/Grovety/grc_devboard/assets/74958179/65a4d221-30a8-4264-b623-301c6ae09783)
 
 ### Rhythm As a Digital Key 
 A user saves a certain rhythm (by tapping on a Dev Board’s surface), which is further used as a personal key.​ 
