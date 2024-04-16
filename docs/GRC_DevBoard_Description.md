@@ -77,7 +77,7 @@ Prepares data for the AI module and displays the results. Provides interacting w
 * Results shown on OLED display, via LEDs, speaker, text to UART USB port;
 * Voice control (command words).
 
-<img src="media/DevBoard_Scheme.png" width=50%>
+<img src="media/DevBoard_Scheme.png" width=80%>
 
 ## Components
 
