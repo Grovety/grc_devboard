@@ -1,60 +1,86 @@
 # Development Kit and Reference Design for Industrial AIoT Applications GRC Dev Board
+**Quick start to developing ML-applications**
 
 ## Description
+<img src="media/DevBoard_Concept_Design.png" width=50%>
 
-The GRC  Dev Board is a development kit and reference design that simplifies prototyping and testing of advanced industrial AIoT applications such as Anomaly Detection and n-Class Classification for predictive maintenance.
+### The GRC Dev Board allows
 
-High-performance speed is achieved due to the use of reservoir computing methods implemented in the GRC AI Module.
+* Promptly testing ready-made, pre-configured neural networks running on a “co-processor” (AI-Module);
+* Checking viability of ML algorithms in solving your tasks and selecting AI functionality which will suit best your goals;
+* Developing software, debugging and testing for a target device.
 
-The GRC Dev Board allows
+### Where Can It Be Used? ​
+* Student training
+* Predictive maintenance
+Equipment condition monitoring
+Smart Home Systems
+Command word recognition
+Gesture recognition
 
-* Promptly testing ready-made, pre-configured neural network;
-* Checking the viability of ML algorithms in solving your particular tasks;
-* Selecting AI functionality which will suit best to your goals;
-* Developing SW, debugging and testing for your target device.
+### Recommended sensors
+Vibrations sensors
+Microphones
+Current sensors
+Accelerometers
+Temperature sensors
+Other sensors which control time series data flow
 
-The GRC Dev Board provides functionality for simple sensors connection, on-the-fly software development and debugging, i.e.
-
-* Sensors management and control
-* Data pre-processing
-* Data formatting for their further processing in the GRC AI Module
-* Data flow transfer onto the GRC AI Module
-* GRC AI Module management and control
-* GRC AI Module results output
-* Data post-processing
-* Results shown on OLED display and/or via LEDs
+## Perks of using GRCTM Dev Board:
+* Saving time and resources at the development stage, as there is no need in
+	* Development of mathematical and statistical anomaly models;
+	* Signal mapping and dataset preparation;
+	* Training model in the cloud.
+* Reducing expenses for the end solution, as there is no need to spend money on
+	* Data transfer from a target device;
+	* Storing large amounts of data;
+	* Infrastructure for processing large data amounts.
+* Development of autonomous solutions due to low power consumption and no need in data transfer to a server.
+* Privacy and security are guaranteed as there is no need in transferring sensor signal from the target device to a server
+* Vast potential of developing flexible solutions configurable to particular hardware.
+* Ultra-low latency: Real-time applications
 
 ## Functional Scheme
+  
+The GRC Dev Board features AI and Application modules to bring functionality for simple sensors connection, on-the-fly software development and debugging.
 
-<img src="media/DevBoard_Scheme.png" width=50%>
-
-## Interaction with GRC AI Module
-
-The GRC Dev Board serves best for developing PoC, MVP, and prototypes. It communicates with GRC AI Module via API interfaces.
+### AI module
 
 The work of the neural network created for the AI tasks is run on the MCU using input data gathered from sensors. The solution provides:​
 
-* **“Training”** mode:​
-  * With an operator;​
-  * Autonomously;​
-  * Performance speed **less than 3 seconds**;​
-  * No dataset and data mapping is required.​
-* **“Classification”** mode:​
-  * Up to 10 categories including anomaly;​
-  * Performance speed **less than 2 seconds**.​
+**“Training” mode:​**
+* With an operator;​
+* No dataset and data mapping are required;
+* Up to 5 categories;​
+* Performance speed less than **2 seconds**.
+​
+**“Classification” mode:​**
+* Classification of one of 5 pre-trained categories;
+* Аnomaly detection;​
+* Performance speed less than **2 seconds**.​
 
-## GRC Dev Board Concept Design
+### Application Module
 
-<img src="media/DevBoard_Concept_Design.png" width=50%>
+ESP32-S3 with user-programmable software.
 
-## GRC Dev Board Description
+Provides voice user interface based on neural network featuring
+* recognition of voice user commands;
+* voice notifications about status, working modes, ongoing operations;
+* confirmation of user commands.
 
-![DevBoard_Description](media/DevBoard_Description.png)
+Prepares data for the AI module and displays the results. Provides interacting with peripheral equipment and an AI module.
+* Sensors management and control;
+* Data pre-processing;
+* Data flow transfer onto the GRCTM AI Module;
+* GRCTM AI Module management and control;
+* Data post-processing;
+* Results shown on OLED display, via LEDs, speaker, text to UART USB port;
+* Voice control (command words).
 
-## Features
+<img src="media/DevBoard_Scheme.png" width=50%>
 
-* GRC Dev Board is a multi-sensing module for implementing AI-driven solutions by adding Anomaly Detection and n-Class Classification functionality
-* Built around ESP32 C3 core system board possessing all appealing expansion, processing, computing and performance characteristics of the original MCU and even more
+## Components
+
 * Processors:
   * Main processor: Tensilica Xtensa 32-bit LX7 microprocessor
     * Cores: 2
@@ -80,65 +106,25 @@ The work of the neural network created for the AI tasks is run on the MCU using
 * Support of battery power supply with charge control and protection
 * Other Dev Board components:
   * 3 RGB LEDs – SK6805
-  * 2 buttons: Reset and User/Boot
+  * 4 buttons
   * Power and battery management
   * OLED Display (optional)
 
-## COMPONENTS LIST
-
-* ESP32-S3-WROOM
-* GRC AI Module
-* Digital MEMS microphone MP34DT06JTR
-* MPU-9250
-
-## Recommended sensors
-
-* Vibrations sensors​
-* Microphones​
-* Current sensors​
-* Accelerometers​
-* Temperature sensors​
-* Other sensors which control time series data flow
+![DevBoard_Description](media/DevBoard_Description.png)
 
 ## Demo scenarios:​
 
-* Anomaly and state detection for fan
-* Voice PIN AI Key
-* Rhythm recognition (Rhythm key)
-* Recognition of hand wave gestures​ (robots, manipulators)
+### Detection of Fan Operating Modes and Anomalies in Its Work
+The Dev Board is placed on a fan’s case; it processes the data stream from the accelerometer in real time to store and further classify fan operating modes or non-standard conditions (anomalies).
 
-## Benefits
+### Spatial Gesture Recognition​ 
+For use on mechanisms, which moves along a given trajectory, e.g., an industrial manipulator on a conveyer, a robotic arm. It is placed on a manipulator’s case, learns the “gestures” and then recognizes their types and notifies about deviations. 
 
-* Quick step into prototyping AI-enhanced solutions
-* Cutting-edge technologies at hand
-* High speed performance provides new level of prototyping and testing to keep up with the newest tendencies
+### Voice PIN Code​ 
+The Dev Board remembers and recognizes a 4-digit code pronounced by a user.  
 
-## Application Domain
-
-* Condition monitoring
-* Predictive maintenance
-* Control Systems
-* Smart Home Systems
-* Security Systems
-
-## Technical Specification
-
-Please refer to Developer's Guide for detailed technical characteristics.
-
-## Perks of using GRC Dev Board
-
-* Saving time and resources at the development stage, as there is no need in
-  * Development of mathematical and statistical anomaly models
-  * Signal mapping and dataset preparation;
-  * Training model in the cloud
-* Reducing expenses for the end solution, as there is no need to spend money on
-  * Data transfer from a target device
-  * Storing large amounts of data
-  * Support of infrastructure for processing large data amounts
-* Development of autonomous solutions due to low power consumption * and no need in data transfer to a server.
-* Privacy and security are guaranteed as there is no need in transferring sensor signal from the target device to a server
-* Vast potential of developing flexible solutions configurable to particular hardware.
-* Ultra-low latency: Real-time applications
+### Rhythm As a Digital Key 
+A user saves a certain rhythm (by tapping on a Dev Board’s surface), which is further used as a personal key.​ 
 
 ## Delivery Documents
 
@@ -149,6 +135,6 @@ Please refer to Developer's Guide for detailed technical characteristics.
 
 ## CONTACT US
 
-<grc@grovety.com>
+<hi@grovety.com>
 
 <https://grovety.com>
