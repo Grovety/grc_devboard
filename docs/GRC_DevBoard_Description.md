@@ -4,6 +4,10 @@
 ## Description
 <img src="media/DevBoard_Concept_Design.png" width=50%>
 
+<img src="media/hand.png" width=50%>
+
+
+
 ### The GRC Dev Board allows
 
 * Promptly testing ready-made, pre-configured neural networks running on a “co-processor” (AI-Module);
