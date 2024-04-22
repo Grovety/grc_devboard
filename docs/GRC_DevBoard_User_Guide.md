@@ -116,15 +116,30 @@ Once you get familiar with the board operating routine, you can go for more comp
 
 Vibro app performs anomaly detection and classification of an electric motor operating.
 
-***Tip:*** *Use a fan (air cooler).*
+***Tip:*** *The scenario below demonstrates work of the app when using a fan*
 
-*To achieve better results, attach the DevBoard firmly to the device.*
+#### Learning
+1. Put the DevBoard on the fan.
+
+*Tip: To achieve better results, attach the DevBoard firmly to the device.*
+
+2. Run the anomaly detection.
+
+3. Save the silent mode (i.e. device is not operating) as one of the patterns.
+
+4. Switch on the fan, and run the first speed mode.
+
+*Tip: To achieve better results, wait till the fan completely switches to the mode and operates smoothly.*
+
+5. Save the anomaly as one of the patterns.
+
+Repeat steps 4-5 for the second and third-speed modes.
 
 #### Classification
+1. When all the required patterns are saved, run the anomaly detection.
 
-1. Put the DevBoard on the device.
-2. Run the anomaly detection.
-3. Save the anomaly as one of the patterns.
+2. Switch the speed modes to test the work of the app.
+
 
 ### VoicePIN
 
